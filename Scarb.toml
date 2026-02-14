@@ -1,0 +1,16 @@
+[package]
+name = "zk_api_credits"
+version = "0.1.0"
+edition = "2024_07"
+
+[[target.executable]]
+
+[cairo]
+enable-gas = false
+
+[dependencies]
+cairo_execute = "2.14.0"
+openzeppelin_merkle_tree = "2.0.0"
+
+[dev-dependencies]
+cairo_test = "2.14.0"
