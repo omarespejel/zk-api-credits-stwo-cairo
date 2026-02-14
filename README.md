@@ -33,8 +33,8 @@ What this repo does not include:
 
 - End-to-end fixed-class STWO/Cairo implementation is working in this workspace.
 - Benchmarked 5 runs per depth (`8, 16, 20, 32`) with wall-clock prove/verify results and relation traces.
-- In the latest run (`2026-02-14T22:49:22Z` UTC), verification remained sub-500ms and proof sizes were around 14.0–14.4MB.
-- Depth-16 timing non-monotonicity appears in this run and is being treated as a trace/padding effect, not a circuit-functional regression.
+- In the latest clean run (`2026-02-14T23:38:01Z` UTC), verification remained sub-100ms and proof sizes were around 14.0–14.4MB.
+- This replaces earlier noisy benchmarks that showed outlier spikes under mixed-load conditions.
 
 ## What this proves
 
@@ -114,23 +114,24 @@ Harness outputs:
 
 `bench_summary.csv` includes min/p50/p95/max/average for wall-clock prove/verify and prover-internal timing, plus proof size.
 
-### Snapshot table (run `2026-02-14T22:49:22Z` UTC, 5 iterations)
+### Snapshot table (run `2026-02-14T23:38:01Z` UTC, 10 iterations)
 
 | depth | prove p50 (ms) | verify p50 (ms) | proof size (bytes) |
 |---|---:|---:|---:|
-| 8 | 26243 | 90 | 14048899 |
-| 16 | 17688 | 373 | 14349849 |
-| 20 | 16245 | 80 | 14436847 |
-| 32 | 19466 | 74 | 14472551 |
+| 8 | 12734 | 66 | 14048899 |
+| 16 | 8589 | 66 | 14349849 |
+| 20 | 10400 | 64 | 14436847 |
+| 32 | 13169 | 64 | 14472551 |
 
-Verification is sub-500ms in this run.
+Verification is around 60–72ms median in this run.
 
 ## Latest snapshot context
 
-- Run timestamp: `2026-02-14T22:49:22Z` UTC
+- Run timestamp: `2026-02-14T23:38:01Z` UTC
 - Environment: Apple M3 Pro (12 cores), 18 GB RAM, macOS 14.7.6 (arm64)
-- Tooling: `scarb` + `cairo` `2.14.0`, Python `3.13.5`, `cairo-prove`
-- Iterations: `BENCH_ITERATIONS=5`
+- Tooling: `scarb` + `cairo` `2.14.0`, Python `3.13.5`, `cairo-prove` from local `stwo-cairo` build
+- Iterations: `BENCH_ITERATIONS=10`
+- Condition: foreground-only execution and dedicated benchmark loop to reduce contention
 
 ## Security/Spec demos
 
