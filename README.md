@@ -2,11 +2,6 @@
 
 A runnable fixed-class STWO/Cairo proof-of-concept for RLN-style API credits.
 
-## Write-ups
-
-- [FORUM_POST.md](./FORUM_POST.md) — short public-facing note.
-- [TECHNICAL_POST.md](./TECHNICAL_POST.md) — detailed protocol and benchmark narrative.
-
 ## Why this repo exists
 
 This repo was created to validate one concrete branch of the API-credits discussion with measurements instead of assumptions:
