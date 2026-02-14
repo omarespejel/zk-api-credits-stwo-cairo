@@ -186,4 +186,12 @@ The demo stores state in-memory; no persistence/on-chain accounting.
 
 - `openzeppelin_merkle_tree` crate for Poseidon Merkle primitives.
 - `stwo-cairo` (`cairo-prove`) for STWO-backed proof generation and verification workflow.
+- `dcrapis` (ethresear.ch) and the broader RLN/API-credits discussion for the fixed-class variant framing and protocol motivation in:
+  - https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104
+  - https://hackmd.io/3da7PaYmTqmNTTwqxVidRg
 - Existing RLN and community discussions as prior art for Shamir-share/slashing formulas and API-credits framing.
+
+## Public discussion references
+
+- This repository is an implementation artifact for protocol discussion; it intentionally avoids embedding forum post text in documentation.
+- If you want, include a link to your own forum write-up in `FORUM_POST.md` when updating the public article copy.
