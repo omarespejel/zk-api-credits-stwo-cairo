@@ -2,6 +2,11 @@
 
 A runnable fixed-class STWO/Cairo proof-of-concept for RLN-style API credits.
 
+## Write-ups
+
+- [FORUM_POST.md](./FORUM_POST.md) — short public-facing note.
+- [TECHNICAL_POST.md](./TECHNICAL_POST.md) — detailed protocol and benchmark narrative.
+
 ## Why this repo exists
 
 This repo was created to validate one concrete branch of the API-credits discussion with measurements instead of assumptions:
@@ -114,6 +119,17 @@ Harness outputs:
 
 `bench_summary.csv` includes min/p50/p95/max/average for wall-clock prove/verify and prover-internal timing, plus proof size.
 
+### Snapshot table (run `2026-02-14T22:49:22Z` UTC, 5 iterations)
+
+| depth | prove p50 (ms) | verify p50 (ms) | proof size (bytes) |
+|---|---:|---:|---:|
+| 8 | 26243 | 90 | 14048899 |
+| 16 | 17688 | 373 | 14349849 |
+| 20 | 16245 | 80 | 14436847 |
+| 32 | 19466 | 74 | 14472551 |
+
+Verification is sub-500ms in this run.
+
 ## Latest snapshot context
 
 - Run timestamp: `2026-02-14T22:49:22Z` UTC
@@ -156,6 +172,18 @@ Output:
 - per-ticket wall time from proof logs
 - total wall-clock for the batch
 
+Example format:
+
+```text
+ticket=0 x=1000 status=proved wall_ms=26243ms proof=.../depth_8_ticket_0_x_1000_proof.json
+ticket=1 x=1007 status=proved wall_ms=25504ms proof=.../depth_8_ticket_1_x_1007_proof.json
+ticket=2 x=1014 status=proved wall_ms=27115ms proof=.../depth_8_ticket_2_x_1014_proof.json
+...
+parallel wall-clock: 33.2s (33.2s)
+proved jobs: 5
+failed jobs: 0
+```
+
 ### Minimal API demo server (`scripts/mini_api_server.py`)
 
 Starts a tiny in-memory API server that verifies proofs and tracks nullifier replay:
@@ -195,3 +223,13 @@ The demo stores state in-memory; no persistence/on-chain accounting.
 
 - This repository is an implementation artifact for protocol discussion; it intentionally avoids embedding forum post text in documentation.
 - If you want, include a link to your own forum write-up in `FORUM_POST.md` when updating the public article copy.
+
+## Implementation footprint
+
+The Cairo circuit is intentionally compact (230 LOC). Tooling and protocol demos are larger because they include benchmark and server harnesses for reproducibility.
+
+```bash
+wc -l src/lib.cairo scripts/*.py scripts/*.sh scripts/bench/*.py scripts/bench_inputs/*.py
+```
+
+At commit-time this reports 230 lines in `src/lib.cairo` and 1,174 lines across helper scripts.
