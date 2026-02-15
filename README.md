@@ -1,57 +1,90 @@
 # zk_api_credits
 
-A runnable fixed-class STWO/Cairo proof-of-concept for RLN-style API credits.
+A small, self-contained proof-of-concept to answer one question from Davide’s “ZK API Usage Credits: LLMs and Beyond” post:
+
+> Is the fixed-class RLN-style design practical on a real prover today, or is it just a diagram?
+
+I implemented one concrete instance and measured it end-to-end.
+
+## TL;DR
+
+- Circuit implements:
+  - Poseidon Merkle membership for `identity_secret` (leaf commitment).
+  - RLN share `y = k + a * x`, where `a = Poseidon(identity_secret, ticket_index)`.
+  - Nullifier `Poseidon(a)` for rate limiting.
+  - Solvency floor `(ticket_index + 1) * class_price <= deposit` (fixed-class cost).
+- Benchmarked on Apple M3 Pro with 10 runs per depth (`8, 16, 20, 32`):
+  - **Prove p50:** ≈ 8.6–13.2s depending on depth.
+  - **Verify p50:** ≈ 64–66ms for all depths.
+  - **Proof size:** ≈ 14.0–14.5 MB.
+- Interpretation:
+  - Verification is cheap and effectively depth-independent in this setup.
+  - Proving time is dominated by prover overhead, and is compatible with pre-generating proofs between user requests.
+
+For this experiment I used Cairo and a STARK prover, but the circuit structure itself is stack-agnostic: it is intended as a concrete data point, not a stack-specific protocol argument.
 
 ## Why this repo exists
 
-This repo was created to validate one concrete branch of the API-credits discussion with measurements instead of assumptions:
+The post discusses a full protocol (membership, RLN rate limiting, solvency, refunds/variable costs). This repo focuses on the fixed-class branch:
 
-a) membership-gated requests via Poseidon Merkle proofs,
+- same cost per call,
+- no in-circuit refunds,
+- no homomorphic or replay-by-spending machinery,
+- still includes membership, RLN share, nullifier, and solvency floor.
 
-b) RLN-style nullifier/share derivation,
+The goals were:
 
-c) simple solvency enforcement, and
+- validate the fixed-class branch end-to-end as a runnable circuit,
+- collect proof/verification numbers from an actual prover,
+- check whether those numbers align with usage patterns like human-paced LLM/API calls.
 
-d) a full prove+verify path with real STWO artifacts.
+## How it relates to Davide’s post
 
-The aim is to provide an implementation artifact for discussion, not a production protocol implementation.
+In this repo, the covered layer is:
+
+- Merkle membership for identity,
+- RLN share construction,
+- nullifier generation and slashing math,
+- solvency floor enforcement.
+
+I deliberately excluded:
+
+- variable-cost routing,
+- E(R) signatures/homomorphic refund paths,
+- chain-side accounting or deployment code.
+
+Concretely, this is equivalent to setting the refund/ER branch aside and testing whether the fixed-class case is operationally practical today.
+
+## Snapshot benchmark results
+
+Latest clean run (`2026-02-14T23:38:01Z` UTC), 10 iterations, Apple M3 Pro:
+
+| depth | prove p50 (ms) | verify p50 (ms) | proof size (bytes) |
+|---|---:|---:|---:|
+| 8  | 12734 | 66 | 14048899 |
+| 16 | 8589  | 66 | 14349849 |
+| 20 | 10400 | 64 | 14436847 |
+| 32 | 13169 | 64 | 14472551 |
+
+More detailed stats are in:
+
+- `scripts/results/bench_summary.csv`
+- `scripts/results/bench_report.md`
 
 ## Scope and non-goals
 
 What this repo includes:
-- fixed-class circuit behavior,
-- benchmark and reproducibility harness,
-- protocol-flow scripts for slashing/replay and pre-generation.
 
-What this repo does not include:
+- fixed-class circuit behavior,
+- reproducible benchmark harness,
+- spec-demo scripts for slashing/replay and pre-generation.
+
+What it does not include:
+
 - protocol deployment contracts,
 - networking or chain-side accounting,
-- refund pathways or class-transition logic,
-- pairing primitives or BBS+ components.
-
-## TL;DR findings
-
-- End-to-end fixed-class STWO/Cairo implementation is working in this workspace.
-- Benchmarked 5 runs per depth (`8, 16, 20, 32`) with wall-clock prove/verify results and relation traces.
-- In the latest clean run (`2026-02-14T23:38:01Z` UTC), verification remained sub-100ms and proof sizes were around 14.0–14.4MB.
-- This replaces earlier noisy benchmarks that showed outlier spikes under mixed-load conditions.
-
-## What this proves
-
-- Poseidon-based membership in a Merkle tree (`identity_secret` leaf commitment)
-- RLN Shamir share `y = k + a1 * x`, where `a1 = Poseidon(identity_secret, ticket_index)`
-- Nullifier `Poseidon(a1)` for rate limiting
-- Solvency floor constraint `(ticket_index + 1) * class_price <= deposit`
-
-## Public/Private boundary
-
-Inputs are passed as function arguments in the Cairo executable model.
-The circuit does:
-
-1. Verify Merkle inclusion
-2. Derive share and nullifier
-3. Enforce solvency inequality
-4. Return `(nullifier, x, y, merkle_root)`
+- refunds or class-transition logic,
+- pairing primitives/BBS+.
 
 ## Versioning
 
@@ -64,23 +97,14 @@ The circuit does:
 ```bash
 cd zk-api-credits
 scarb build
-/path/to/cairo-prove prove target/release/zk_api_credits.executable.json ./proof.json --arguments-file scripts/bench_inputs/template_depth_args.json
+/path/to/cairo-prove prove target/release/zk_api_credits.executable.json ./proof.json \
+  --arguments-file scripts/bench_inputs/template_depth_args.json
 /path/to/cairo-prove verify ./proof.json
 ```
 
-## Proof CLI notes
+### Benchmark harness
 
-- `cairo-prove` logs do not include constraint counts in default output.
-- Bench artifacts in this repo include:
-  - wall-clock prove timing
-  - wall-clock verify timing
-  - proof file size
-  - prover internal timing from logs when `RUST_LOG=info` is enabled
-
-## Benchmarks
-
-- Build once with `scarb build`
-- Regenerate depth fixtures from canonical fixtures:
+- Regenerate depth fixtures:
 
 ```bash
 ./scripts/bench_inputs/generate_bench_args.py \
@@ -88,15 +112,13 @@ scarb build
   --out-dir scripts/bench_inputs
 ```
 
-The command keeps Merkle proof/root values from base fixtures and rewrites witness fields (`deposit`, `class_price`) as `u256` low/high limbs.
-
-- Run multi-depth harness:
+- Run benchmark (example):
 
 ```bash
-CAIRO_PROVE=/path/to/cairo-prove BENCH_DEPTHS="8 16 20 32" BENCH_ITERATIONS=5 ./scripts/bench/run_depths.sh
+CAIRO_PROVE=/path/to/cairo-prove BENCH_DEPTHS="8 16 20 32" BENCH_ITERATIONS=10 ./scripts/bench/run_depths.sh
 ```
 
-- Generate a shareable markdown report:
+- Generate report from CSVs:
 
 ```bash
 ./scripts/bench/generate_report.py \
@@ -105,127 +127,43 @@ CAIRO_PROVE=/path/to/cairo-prove BENCH_DEPTHS="8 16 20 32" BENCH_ITERATIONS=5 ./
   --out scripts/results/bench_report.md
 ```
 
-Harness outputs:
+Outputs:
 
 - `scripts/results/bench_runs.csv`
 - `scripts/results/bench_summary.csv`
 - `scripts/results/relation_counts.csv`
 - `scripts/results/bench_report.md`
 
-`bench_summary.csv` includes min/p50/p95/max/average for wall-clock prove/verify and prover-internal timing, plus proof size.
+### Security/Spec demos
 
-### Snapshot table (run `2026-02-14T23:38:01Z` UTC, 10 iterations)
-
-| depth | prove p50 (ms) | verify p50 (ms) | proof size (bytes) |
-|---|---:|---:|---:|
-| 8 | 12734 | 66 | 14048899 |
-| 16 | 8589 | 66 | 14349849 |
-| 20 | 10400 | 64 | 14436847 |
-| 32 | 13169 | 64 | 14472551 |
-
-Verification is around 60–72ms median in this run.
-
-## Latest snapshot context
-
-- Run timestamp: `2026-02-14T23:38:01Z` UTC
-- Environment: Apple M3 Pro (12 cores), 18 GB RAM, macOS 14.7.6 (arm64)
-- Tooling: `scarb` + `cairo` `2.14.0`, Python `3.13.5`, `cairo-prove` from local `stwo-cairo` build
-- Iterations: `BENCH_ITERATIONS=10`
-- Condition: foreground-only execution and dedicated benchmark loop to reduce contention
-
-## Security/Spec demos
-
-### Slashing recovery (`scripts/slash.py`)
-
-Build two `(nullifier, ticket_index, x, y)` share objects and run:
+#### Slashing recovery (`scripts/slash.py`)
 
 ```bash
 python3 scripts/slash.py share1.json share2.json
 ```
 
-The script recovers `identity_secret` via:
+Recovers `identity_secret` via:
 
-```
+```text
 a0 = (y1 * x2 - y2 * x1) / (x2 - x1)
 ```
 
-Optional check:
-
-```bash
-python3 scripts/slash.py share1.json share2.json --expected-identity-secret 0x2a
-```
-
-### Parallel pre-generation (`scripts/precompute_parallel.sh`)
-
-Generate multiple tickets in parallel for latency experiments:
+#### Parallel pre-generation (`scripts/precompute_parallel.sh`)
 
 ```bash
 DEPTH=8 COUNT=5 BASE_INDEX=0 X_START=1000 X_STEP=7 ./scripts/precompute_parallel.sh
 ```
 
-Output:
-- one proof + log per ticket in `OUT_DIR` (default `scripts/results/parallel_batch_<ts>`)
-- per-ticket wall time from proof logs
-- total wall-clock for the batch
-
-Example format:
-
-```text
-ticket=0 x=1000 status=proved wall_ms=26243ms proof=.../depth_8_ticket_0_x_1000_proof.json
-ticket=1 x=1007 status=proved wall_ms=25504ms proof=.../depth_8_ticket_1_x_1007_proof.json
-ticket=2 x=1014 status=proved wall_ms=27115ms proof=.../depth_8_ticket_2_x_1014_proof.json
-...
-parallel wall-clock: 33.2s (33.2s)
-proved jobs: 5
-failed jobs: 0
-```
-
-### Minimal API demo server (`scripts/mini_api_server.py`)
-
-Starts a tiny in-memory API server that verifies proofs and tracks nullifier replay:
+#### Minimal API demo server (`scripts/mini_api_server.py`)
 
 ```bash
 python3 scripts/mini_api_server.py --cairo-prove /path/to/cairo-prove
 ```
 
-Endpoints:
-- `GET /healthz`
-- `POST /submit` with:
-  - `proof_b64` (base64 proof json, preferred) or `proof_path`
-  - `nullifier`, `ticket_index`, `x`, `y`
-- `GET /state`
-
-The demo stores state in-memory; no persistence/on-chain accounting.
-
-## Files
-
-- `src/lib.cairo` — circuit and tests
-- `scripts/bench_inputs/template_depth_args.json` — argument order template
-- `scripts/bench/run_depths.sh` — multi-depth benchmark runner
-- `scripts/prove_example.sh` — one-shot prove + verify
-- `scripts/precompute_parallel.sh` — parallel proof generation
-- `scripts/slash.py` / `scripts/mini_api_server.py` — protocol demos
-
 ## Credits
 
 - `openzeppelin_merkle_tree` crate for Poseidon Merkle primitives.
-- `stwo-cairo` (`cairo-prove`) for STWO-backed proof generation and verification workflow.
-- `dcrapis` (ethresear.ch) and the broader RLN/API-credits discussion for the fixed-class variant framing and protocol motivation in:
+- `stwo-cairo` (`cairo-prove`) for STARK proof generation/verification in this benchmark.
+- `dcrapis` (ethresear.ch) and the broader RLN/API-credits discussion for fixed-class framing:
   - https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104
   - https://hackmd.io/3da7PaYmTqmNTTwqxVidRg
-- Existing RLN and community discussions as prior art for Shamir-share/slashing formulas and API-credits framing.
-
-## Public discussion references
-
-- This repository is an implementation artifact for protocol discussion; it intentionally avoids embedding forum post text in documentation.
-- If you want, include a link to your own forum write-up in `FORUM_POST.md` when updating the public article copy.
-
-## Implementation footprint
-
-The Cairo circuit is intentionally compact (230 LOC). Tooling and protocol demos are larger because they include benchmark and server harnesses for reproducibility.
-
-```bash
-wc -l src/lib.cairo scripts/*.py scripts/*.sh scripts/bench/*.py scripts/bench_inputs/*.py
-```
-
-At commit-time this reports 230 lines in `src/lib.cairo` and 1,174 lines across helper scripts.
