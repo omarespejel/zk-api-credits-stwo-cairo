@@ -74,6 +74,13 @@ Latest clean run (2026-02-14T23:38:01Z UTC, 10 iterations, Apple M3 Pro):
 
 More detailed stats (min/p95/max, relation counts, etc.) are in `scripts/results/bench_report.md` and `scripts/results/bench_summary.csv`.
 
+Tiny note on "proof size": the files in `scripts/results/*_proof.json` are pretty-printed JSON, so they look huge.
+If you just want a quick "ok how big is this really" number, gzip is a decent proxy:
+
+```bash
+python3 scripts/proof_size.py scripts/results/depth_16_run1_proof.json
+```
+
 ## Scope and non‑goals
 
 What this repo includes:
@@ -100,4 +107,3 @@ scarb build
   --arguments-file scripts/bench_inputs/template_depth_args.json
 /path/to/cairo-prove verify ./proof.json
 ```
-
