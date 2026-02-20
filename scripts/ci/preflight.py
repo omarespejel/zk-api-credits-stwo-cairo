@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -10,7 +11,26 @@ import tempfile
 from pathlib import Path
 
 
+def is_valid_cairo_prove(binary_path: Path) -> bool:
+    """Best-effort sanity check to avoid picking dummy `cairo-prove` binaries."""
+    if not (binary_path.exists() and binary_path.is_file()):
+        return False
+    try:
+        completed = subprocess.run(
+            [str(binary_path), "--help"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+    except OSError:
+        return False
+    output = completed.stdout or ""
+    return "Usage: cairo-prove" in output and "prove" in output and "verify" in output
+
+
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for preflight checks."""
     parser = argparse.ArgumentParser(description="Matrix-driven preflight smoke checks.")
     parser.add_argument(
         "--matrix",
@@ -36,6 +56,7 @@ def run(
     expect_success: bool = True,
     expected_substring: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    """Run a command and assert expected success/failure semantics."""
     print(f"$ {' '.join(cmd)}")
     completed = subprocess.run(
         cmd,
@@ -64,29 +85,29 @@ def run(
 
 
 def resolve_cairo_prove(project_root: Path) -> str | None:
-    import os
-
+    """Resolve cairo-prove from env, PATH, or known local fallback paths."""
     env_value = os.environ.get("CAIRO_PROVE")
 
     if env_value:
         candidate = Path(env_value)
-        if candidate.exists() and candidate.is_file():
+        if is_valid_cairo_prove(candidate):
             return str(candidate)
-
-    which = shutil.which("cairo-prove")
-    if which:
-        return which
 
     for fallback in [
         project_root / "../stwo-cairo-src/cairo-prove/target/release/cairo-prove",
         project_root / "../stwo-cairo/cairo-prove/target/release/cairo-prove",
     ]:
-        if fallback.exists() and fallback.is_file():
+        if is_valid_cairo_prove(fallback):
             return str(fallback)
+
+    which = shutil.which("cairo-prove")
+    if which and is_valid_cairo_prove(Path(which)):
+        return which
     return None
 
 
 def parse_proof_path_from_scarb_output(output: str) -> str:
+    """Extract emitted proof path from scarb prove output."""
     match = re.search(r"Saving proof to:\s*(.+)", output)
     if not match:
         raise RuntimeError("could not parse proof path from scarb output")
@@ -94,6 +115,7 @@ def parse_proof_path_from_scarb_output(output: str) -> str:
 
 
 def main() -> int:
+    """Execute matrix-driven smoke checks across supported and unsupported paths."""
     args = parse_args()
     project_root = Path(__file__).resolve().parents[2]
     matrix_path = (project_root / args.matrix).resolve()
@@ -119,7 +141,15 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="zk_preflight_") as tmp:
         tmp_dir = Path(tmp)
-        for contract in contracts:
+        required_keys = {"id", "engine", "target", "status", "arguments_file"}
+        for idx, contract in enumerate(contracts):
+            missing = sorted(required_keys - set(contract.keys()))
+            if missing:
+                raise ValueError(
+                    f"compat matrix contract[{idx}] missing required keys: {missing}; "
+                    f"entry={contract}"
+                )
+
             contract_id = contract["id"]
             engine = contract["engine"]
             target = contract["target"]
@@ -186,10 +216,23 @@ def main() -> int:
 
             elif status == "unsupported":
                 if args.skip_negative:
-                    print(f"[preflight] skipped unsupported-path check for {contract_id}")
+                    if os.environ.get("CI"):
+                        raise RuntimeError(
+                            f"[preflight] --skip-negative cannot be used in CI "
+                            f"(contract={contract_id})"
+                        )
+                    print(
+                        f"[preflight][warning] skipped unsupported-path check for "
+                        f"{contract_id}; do not use this in CI"
+                    )
                     continue
 
                 expected = contract.get("expected_error_substring")
+                if expected is None:
+                    raise ValueError(
+                        f"[{contract_id}] unsupported contract must declare "
+                        "expected_error_substring"
+                    )
                 if engine == "cairo-prove":
                     binary = project_root / contract["binary"]
                     if not binary.exists():

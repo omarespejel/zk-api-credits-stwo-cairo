@@ -1,6 +1,9 @@
 {
   "version": 1,
   "updated_at_utc": "2026-02-20T00:00:00Z",
+  "pinned_versions": {
+    "stwo_cairo_ref": "v1.0.1"
+  },
   "notes": "Support matrix contract for smoke-proof paths used by preflight and CI.",
   "contracts": [
     {

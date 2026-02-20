@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "updated_at_utc": "2026-02-21T00:00:00Z",
+  "notes": "CI smoke matrix (scarb-prove only).",
+  "contracts": [
+    {
+      "id": "main_scarb_prove_ci",
+      "target": "zk_api_credits",
+      "engine": "scarb-prove",
+      "profile": "release",
+      "status": "supported",
+      "arguments_file": "scripts/bench_inputs/depth_8.json",
+      "verify": true
+    },
+    {
+      "id": "v2_kernel_scarb_prove_ci",
+      "target": "zk_api_credits_v2_kernel",
+      "engine": "scarb-prove",
+      "profile": "release",
+      "status": "supported",
+      "arguments_file": "scripts/bench_inputs/v2_kernel/depth_8.json",
+      "verify": true
+    }
+  ]
+}

@@ -7,11 +7,13 @@ from pathlib import Path
 
 
 def read_rows(path: Path) -> list[dict[str, str]]:
+    """Load CSV rows keyed by header names."""
     with path.open() as f:
         return list(csv.DictReader(f))
 
 
 def write_table(f, headers: list[str], rows: list[dict[str, str]]) -> None:
+    """Render a markdown table using explicit header-name lookup."""
     f.write("| " + " | ".join(headers) + " |\n")
     f.write("|" + "|".join(["---"] * len(headers)) + "|\n")
     for row in rows:
@@ -20,6 +22,7 @@ def write_table(f, headers: list[str], rows: list[dict[str, str]]) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for combined report generation."""
     parser = argparse.ArgumentParser(
         description="Build a single shareable table pack with engine/profile guardrails."
     )
@@ -36,6 +39,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """Build a combined report, with strict guardrails on mixed run families."""
     args = parse_args()
     main_summary_path = Path(args.main_summary)
     delta_summary_path = Path(args.delta_summary)
@@ -80,12 +84,13 @@ def main() -> int:
             )
 
         f.write("## Baseline Summary\n\n")
+        # Keep this as a compact subset; row values are looked up by header name.
         baseline_headers = [
             "run_tag",
             "prover_engine",
             "profile",
-            "machine",
             "target",
+            "machine",
             "depth",
             "samples",
             "prove_wall_ms_p50",
