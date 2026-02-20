@@ -9,9 +9,10 @@ I implemented one concrete instance and measured it end‑to‑end.
 ## TL;DR
 
 - Circuit implements:
-  - Poseidon Merkle membership for `identity_secret` (leaf commitment).
+  - Poseidon Merkle membership for RLN `rate_commitment = Poseidon(identity_commitment, user_message_limit)`.
   - RLN share `y = k + a * x` with `a = Poseidon(identity_secret, scope, ticket_index)`.
   - Nullifier `Poseidon(a)` for rate limiting.
+  - Ticket bound check `ticket_index < user_message_limit`.
   - Solvency floor `(ticket_index + 1) * class_price <= deposit` (fixed‑class cost).
 - Benchmarked on an Apple M3 Pro (10 runs per depth: 8, 16, 20, 32):
   - **Prove p50:** ≈ 8.6–13.2s depending on depth.
@@ -50,9 +51,10 @@ Very roughly, his post has two layers:
 
 This repo only targets the first layer, and within that, the fixed‑class case:
 
-- Poseidon membership in a Merkle tree (identity leaf).
+- Poseidon membership in a Merkle tree (RLN `rate_commitment` leaf).
 - RLN share construction `y = k + a * x` with `a = Poseidon(identity_secret, scope, ticket_index)`.
 - Nullifier `Poseidon(a)` for rate limiting.
+- Ticket bound check `ticket_index < user_message_limit`.
 - Solvency floor `(ticket_index + 1) * class_price <= deposit`.
 
 The refund / E(R) layer (in‑circuit signature verification, homomorphic updates to commitments) is deliberately left out. In Davide’s terms, you can think of this as answering:
@@ -61,8 +63,11 @@ The refund / E(R) layer (in‑circuit signature verification, homomorphic update
 
 The answer from this repo is: **for human‑paced LLM/API usage, yes.** Verification is ~65ms, proof sizes are ~14MB, and proving can be pushed into pre‑generation between user requests.
 
+Small update: there is now a separate `v2_kernel` executable used only for overhead benchmarking. It is intentionally minimal (adds a signature-check path and commitment update path) and is **not** a full implementation of the refund protocol flow.
+
 ## Snapshot benchmark results
 
+Historical clean snapshot from the earlier fixed-class baseline run:
 Latest clean run (2026-02-14T23:38:01Z UTC, 10 iterations, Apple M3 Pro):
 
 | depth | prove p50 (ms) | verify p50 (ms) | proof size (bytes) |

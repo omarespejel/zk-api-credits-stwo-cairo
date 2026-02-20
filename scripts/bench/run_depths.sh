@@ -47,6 +47,7 @@ if [[ ${ITERATIONS} -lt 1 ]]; then
 fi
 
 mkdir -p "${RESULTS_DIR}"
+RUN_TAG="run$(date +%s)"
 
 RAW_RESULTS_FILE="${RESULTS_DIR}/bench_runs.csv"
 SUMMARY_FILE="${RESULTS_DIR}/bench_summary.csv"
@@ -65,9 +66,9 @@ for depth in ${BENCH_DEPTHS}; do
 
   for iteration in $(seq 1 "${ITERATIONS}"); do
     run_id=$((run_id + 1))
-    proof_file="${RESULTS_DIR}/depth_${depth}_run${iteration}_proof.json"
-    prove_log="${RESULTS_DIR}/depth_${depth}_run${iteration}_prove.log"
-    verify_log="${RESULTS_DIR}/depth_${depth}_run${iteration}_verify.log"
+    proof_file="${RESULTS_DIR}/depth_${depth}_run${iteration}_${RUN_TAG}_proof.json"
+    prove_log="${RESULTS_DIR}/depth_${depth}_run${iteration}_${RUN_TAG}_prove.log"
+    verify_log="${RESULTS_DIR}/depth_${depth}_run${iteration}_${RUN_TAG}_verify.log"
 
     start_ms=$(python3 - <<'PY'
 import time
@@ -219,7 +220,7 @@ PY
 if [[ "${COLLECT_RELATION_COUNTS}" -eq 1 ]]; then
   "${PROJECT_ROOT}/scripts/bench/extract_relation_counts.py" \
     --verify-logs-dir "${RESULTS_DIR}" \
-    --pattern "depth_*_run*_verify.log" \
+    --pattern "depth_*_${RUN_TAG}_verify.log" \
     --out "${RESULTS_DIR}/relation_counts.csv"
 fi
 

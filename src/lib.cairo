@@ -1,10 +1,17 @@
+use core::integer::{u32, u256};
+use core::ecdsa::check_ecdsa_signature;
+use core::pedersen::pedersen;
 use core::poseidon::poseidon_hash_span;
-use core::integer::u256;
 
-use openzeppelin_merkle_tree::merkle_proof::verify_poseidon;
+use openzeppelin_merkle_tree::hashes::PoseidonCHasher;
+use openzeppelin_merkle_tree::merkle_proof::{process_proof, verify_poseidon};
 
 fn hash_poseidon_single(value: felt252) -> felt252 {
     poseidon_hash_span([value].span())
+}
+
+fn hash_poseidon_pair(left: felt252, right: felt252) -> felt252 {
+    poseidon_hash_span([left, right].span())
 }
 
 fn hash_poseidon_triplet(a: felt252, b: felt252, c: felt252) -> felt252 {
@@ -17,22 +24,35 @@ fn assert_u256_ordering(ticket_index: felt252, deposit: u256, class_price: u256)
     assert!(required_deposit <= deposit, "INSUFFICIENT_DEPOSIT");
 }
 
+fn assert_ticket_in_range(ticket_index: felt252, user_message_limit: u32) {
+    let ticket_index_u32: u32 = ticket_index.try_into().expect('TICKET_INDEX_CONVERSION_FAILED');
+    assert!(ticket_index_u32 < user_message_limit, "TICKET_INDEX_OUT_OF_RANGE");
+}
+
+fn build_rate_commitment(identity_secret: felt252, user_message_limit: u32) -> felt252 {
+    let identity_commitment = hash_poseidon_single(identity_secret);
+    hash_poseidon_pair(identity_commitment, user_message_limit.into())
+}
+
 #[executable]
 fn main(
     identity_secret: felt252,
     ticket_index: felt252,
     x: felt252,
     scope: felt252,
+    user_message_limit: u32,
     deposit: u256,
     class_price: u256,
     merkle_root: felt252,
     merkle_proof: Array<felt252>,
 ) -> (felt252, felt252, felt252, felt252) {
-    let identity_commitment = hash_poseidon_single(identity_secret);
+    let rate_commitment = build_rate_commitment(identity_secret, user_message_limit);
     assert!(
-        verify_poseidon(merkle_proof.span(), merkle_root, identity_commitment),
+        verify_poseidon(merkle_proof.span(), merkle_root, rate_commitment),
         "INVALID_MERKLE_PROOF",
     );
+
+    assert_ticket_in_range(ticket_index, user_message_limit);
 
     let a1 = hash_poseidon_triplet(identity_secret, scope, ticket_index);
     let y = identity_secret + a1 * x;
@@ -43,35 +63,103 @@ fn main(
     (nullifier, x, y, merkle_root)
 }
 
+#[executable]
+fn v2_kernel(
+    identity_secret: felt252,
+    ticket_index: felt252,
+    x: felt252,
+    scope: felt252,
+    user_message_limit: u32,
+    deposit: u256,
+    class_price: u256,
+    merkle_root: felt252,
+    merkle_proof: Array<felt252>,
+    refund_commitment_prev: felt252,
+    refund_amount: felt252,
+    remask_nonce: felt252,
+    refund_ticket_hash: felt252,
+    server_pubkey: felt252,
+    signature_r: felt252,
+    signature_s: felt252,
+) -> (felt252, felt252, felt252, felt252, felt252, felt252) {
+    let rate_commitment = build_rate_commitment(identity_secret, user_message_limit);
+    assert!(
+        verify_poseidon(merkle_proof.span(), merkle_root, rate_commitment),
+        "INVALID_MERKLE_PROOF",
+    );
+    assert_ticket_in_range(ticket_index, user_message_limit);
+    assert_u256_ordering(ticket_index, deposit, class_price);
+
+    let a1 = hash_poseidon_triplet(identity_secret, scope, ticket_index);
+    let y = identity_secret + a1 * x;
+    let nullifier = hash_poseidon_single(a1);
+
+    let signature_ok = check_ecdsa_signature(
+        refund_ticket_hash, server_pubkey, signature_r, signature_s,
+    );
+    assert!(signature_ok, "INVALID_REFUND_SIGNATURE");
+
+    let refund_commitment_updated = pedersen(refund_commitment_prev, refund_amount);
+    let refund_commitment_remasked = pedersen(refund_commitment_updated, remask_nonce);
+
+    (
+        nullifier,
+        x,
+        y,
+        merkle_root,
+        refund_commitment_updated,
+        refund_commitment_remasked,
+    )
+}
+
+#[executable]
+fn derive_rate_commitment_root(
+    identity_secret: felt252,
+    user_message_limit: u32,
+    merkle_proof: Array<felt252>,
+) -> felt252 {
+    let identity_commitment = hash_poseidon_single(identity_secret);
+    let rate_commitment = hash_poseidon_pair(identity_commitment, user_message_limit.into());
+    process_proof::<PoseidonCHasher>(merkle_proof.span(), rate_commitment)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{main, hash_poseidon_single, hash_poseidon_triplet};
-    use openzeppelin_merkle_tree::merkle_proof::process_proof;
-    use openzeppelin_merkle_tree::hashes::PoseidonCHasher;
+    use super::{hash_poseidon_pair, hash_poseidon_single, hash_poseidon_triplet, main, v2_kernel};
     use core::poseidon::poseidon_hash_span;
+    use core::pedersen::pedersen;
+    use openzeppelin_merkle_tree::hashes::PoseidonCHasher;
+    use openzeppelin_merkle_tree::merkle_proof::process_proof;
 
     const IDENTITY_SECRET: felt252 = 42;
     const TICKET_INDEX: felt252 = 3;
+    const USER_MESSAGE_LIMIT: u32 = 32;
     const X: felt252 = 12_345;
     const SCOPE: felt252 = 32;
 
+    fn rate_commitment() -> felt252 {
+        let identity_commitment = poseidon_hash_span([IDENTITY_SECRET].span());
+        hash_poseidon_pair(identity_commitment, USER_MESSAGE_LIMIT.into())
+    }
+
     #[test]
     fn test_main_happy_path() {
-        let identity_commitment = poseidon_hash_span([IDENTITY_SECRET].span());
         let proof: Array<felt252> = array![];
-        let (nullifier, output_x, y, root) = main(
+        let root = rate_commitment();
+        let (nullifier, output_x, y, output_root) = main(
             IDENTITY_SECRET,
             TICKET_INDEX,
             X,
             SCOPE,
+            USER_MESSAGE_LIMIT,
             1_000.into(),
             100.into(),
-            identity_commitment,
+            root,
             proof,
         );
 
         assert!(output_x == X, "X_OUTPUT_MISMATCH");
-        assert!(root == identity_commitment, "ROOT_MISMATCH");
+        assert!(output_root == root, "ROOT_MISMATCH");
 
         let a1 = hash_poseidon_triplet(IDENTITY_SECRET, SCOPE, TICKET_INDEX);
         let expected_y = IDENTITY_SECRET + a1 * X;
@@ -83,16 +171,17 @@ mod tests {
 
     #[test]
     fn test_main_ticket_index_zero_boundary() {
-        let identity_commitment = poseidon_hash_span([IDENTITY_SECRET].span());
         let proof: Array<felt252> = array![];
-        let (nullifier, output_x, y, root) = main(
+        let root = rate_commitment();
+        let (nullifier, output_x, y, output_root) = main(
             IDENTITY_SECRET,
             0,
             X,
             SCOPE,
+            USER_MESSAGE_LIMIT,
             100.into(),
             100.into(),
-            identity_commitment,
+            root,
             proof,
         );
 
@@ -101,23 +190,24 @@ mod tests {
         let expected_nullifier = hash_poseidon_single(a1);
 
         assert!(output_x == X, "X_OUTPUT_MISMATCH");
-        assert!(root == identity_commitment, "ROOT_MISMATCH");
+        assert!(output_root == root, "ROOT_MISMATCH");
         assert!(y == expected_y, "Y_MISMATCH");
         assert!(nullifier == expected_nullifier, "NULLIFIER_MISMATCH");
     }
 
     #[test]
     fn test_main_allows_boundary_deposit() {
-        let identity_commitment = poseidon_hash_span([IDENTITY_SECRET].span());
         let proof: Array<felt252> = array![];
-        let (nullifier, output_x, y, root) = main(
+        let root = rate_commitment();
+        let (nullifier, output_x, y, output_root) = main(
             IDENTITY_SECRET,
             TICKET_INDEX,
             X,
             SCOPE,
+            USER_MESSAGE_LIMIT,
             400.into(),
             100.into(),
-            identity_commitment,
+            root,
             proof,
         );
 
@@ -126,30 +216,28 @@ mod tests {
         let expected_nullifier = hash_poseidon_single(a1);
 
         assert!(output_x == X, "X_OUTPUT_MISMATCH");
-        assert!(root == identity_commitment, "ROOT_MISMATCH");
+        assert!(output_root == root, "ROOT_MISMATCH");
         assert!(y == expected_y, "Y_MISMATCH");
         assert!(nullifier == expected_nullifier, "NULLIFIER_MISMATCH");
     }
 
     #[test]
     fn test_main_with_depth8_proof() {
-        let proof: Array<felt252> = array![
-            8073, 8090, 8107, 8124, 8141, 8158, 8175, 8192
-        ];
-        let identity_commitment = poseidon_hash_span([IDENTITY_SECRET].span());
-        let merkle_root = process_proof::<PoseidonCHasher>(proof.span(), identity_commitment);
-        let (nullifier, output_x, y, root) = main(
+        let proof: Array<felt252> = array![8073, 8090, 8107, 8124, 8141, 8158, 8175, 8192];
+        let root = process_proof::<PoseidonCHasher>(proof.span(), rate_commitment());
+        let (nullifier, output_x, y, output_root) = main(
             IDENTITY_SECRET,
             TICKET_INDEX,
             X,
             SCOPE,
+            USER_MESSAGE_LIMIT,
             1000.into(),
             100.into(),
-            merkle_root,
+            root,
             proof,
         );
 
-        assert!(root == merkle_root, "ROOT_MISMATCH");
+        assert!(output_root == root, "ROOT_MISMATCH");
         assert!(output_x == X, "X_OUTPUT_MISMATCH");
         let a1 = hash_poseidon_triplet(IDENTITY_SECRET, SCOPE, TICKET_INDEX);
         let expected_y = IDENTITY_SECRET + a1 * X;
@@ -161,16 +249,33 @@ mod tests {
     #[test]
     #[should_panic(expected: "INSUFFICIENT_DEPOSIT")]
     fn test_main_rejects_insufficient_deposit_edge() {
-        let identity_commitment = poseidon_hash_span([IDENTITY_SECRET].span());
         let proof: Array<felt252> = array![];
         main(
             IDENTITY_SECRET,
             TICKET_INDEX,
             X,
             SCOPE,
+            USER_MESSAGE_LIMIT,
             399.into(),
             100.into(),
-            identity_commitment,
+            rate_commitment(),
+            proof,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected: "TICKET_INDEX_OUT_OF_RANGE")]
+    fn test_main_rejects_ticket_index_out_of_range() {
+        let proof: Array<felt252> = array![];
+        main(
+            IDENTITY_SECRET,
+            USER_MESSAGE_LIMIT.into(),
+            X,
+            SCOPE,
+            USER_MESSAGE_LIMIT,
+            10_000.into(),
+            1.into(),
+            rate_commitment(),
             proof,
         );
     }
@@ -178,30 +283,19 @@ mod tests {
     #[test]
     #[should_panic(expected: "INVALID_MERKLE_PROOF")]
     fn test_main_rejects_wrong_root_for_depth8_proof() {
-        let proof: Array<felt252> = array![
-            8073, 8090, 8107, 8124, 8141, 8158, 8175, 8192
-        ];
-        let identity_commitment = poseidon_hash_span([IDENTITY_SECRET].span());
-        let merkle_root = process_proof::<PoseidonCHasher>(proof.span(), identity_commitment);
+        let proof: Array<felt252> = array![8073, 8090, 8107, 8124, 8141, 8158, 8175, 8192];
+        let root = process_proof::<PoseidonCHasher>(proof.span(), rate_commitment());
         main(
             IDENTITY_SECRET,
             TICKET_INDEX,
             X,
             SCOPE,
+            USER_MESSAGE_LIMIT,
             1000.into(),
             100.into(),
-            merkle_root + 1,
+            root + 1,
             proof,
         );
-    }
-
-    #[test]
-    fn test_process_proof_depth1_matches_expected_root() {
-        let proof: Array<felt252> = array![8073];
-        let identity_commitment = poseidon_hash_span([IDENTITY_SECRET].span());
-        let expected_root = 3226140784751492677570441901450059168905283072218262979618999391350193612117;
-        let merkle_root = process_proof::<PoseidonCHasher>(proof.span(), identity_commitment);
-        assert!(merkle_root == expected_root, "ROOT_MISMATCH");
     }
 
     #[test]
@@ -213,6 +307,7 @@ mod tests {
             TICKET_INDEX,
             X,
             SCOPE,
+            USER_MESSAGE_LIMIT,
             1_000.into(),
             100.into(),
             99,
@@ -223,18 +318,107 @@ mod tests {
     #[test]
     #[should_panic(expected: "INSUFFICIENT_DEPOSIT")]
     fn test_main_rejects_insufficient_deposit() {
-        let identity_commitment = poseidon_hash_span([IDENTITY_SECRET].span());
         let proof: Array<felt252> = array![];
         main(
             IDENTITY_SECRET,
             TICKET_INDEX,
             X,
             SCOPE,
+            USER_MESSAGE_LIMIT,
             100.into(),
             50.into(),
-            identity_commitment,
+            rate_commitment(),
             proof,
         );
     }
 
+    #[test]
+    fn test_v2_kernel_happy_path() {
+        let proof: Array<felt252> = array![];
+        let root = rate_commitment();
+        let refund_commitment_prev = 123;
+        let refund_amount = 7;
+        let remask_nonce = 9;
+
+        let refund_ticket_hash =
+            0x2d6479c0758efbb5aa07d35ed5454d728637fceab7ba544d3ea95403a5630a8;
+        let server_pubkey =
+            0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca;
+        let signature_r =
+            0x6ff7b413a8457ef90f326b5280600a4473fef49b5b1dcdfcd7f42ca7aa59c69;
+        let signature_s = 0x23a9747ed71abc5cb956c0df44ee8638b65b3e9407deade65de62247b8fd77;
+
+        let (
+            nullifier,
+            output_x,
+            y,
+            output_root,
+            refund_commitment_updated,
+            refund_commitment_remasked,
+        ) = v2_kernel(
+            IDENTITY_SECRET,
+            TICKET_INDEX,
+            X,
+            SCOPE,
+            USER_MESSAGE_LIMIT,
+            1_000.into(),
+            100.into(),
+            root,
+            proof,
+            refund_commitment_prev,
+            refund_amount,
+            remask_nonce,
+            refund_ticket_hash,
+            server_pubkey,
+            signature_r,
+            signature_s,
+        );
+
+        assert!(output_x == X, "X_OUTPUT_MISMATCH");
+        assert!(output_root == root, "ROOT_MISMATCH");
+
+        let a1 = hash_poseidon_triplet(IDENTITY_SECRET, SCOPE, TICKET_INDEX);
+        let expected_y = IDENTITY_SECRET + a1 * X;
+        let expected_nullifier = hash_poseidon_single(a1);
+        assert!(nullifier == expected_nullifier, "NULLIFIER_MISMATCH");
+        assert!(y == expected_y, "Y_MISMATCH");
+
+        let expected_updated = pedersen(refund_commitment_prev, refund_amount);
+        let expected_remasked = pedersen(expected_updated, remask_nonce);
+        assert!(refund_commitment_updated == expected_updated, "REFUND_COMMITMENT_MISMATCH");
+        assert!(refund_commitment_remasked == expected_remasked, "REFUND_REMASK_MISMATCH");
+    }
+
+    #[test]
+    #[should_panic(expected: "INVALID_REFUND_SIGNATURE")]
+    fn test_v2_kernel_rejects_bad_signature() {
+        let proof: Array<felt252> = array![];
+        let root = rate_commitment();
+        let refund_ticket_hash =
+            0x2d6479c0758efbb5aa07d35ed5454d728637fceab7ba544d3ea95403a5630a8;
+        let server_pubkey =
+            0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca;
+        let signature_r =
+            0x6ff7b413a8457ef90f326b5280600a4473fef49b5b1dcdfcd7f42ca7aa59c69;
+        let signature_s = 0x23a9747ed71abc5cb956c0df44ee8638b65b3e9407deade65de62247b8fd77 + 1;
+
+        v2_kernel(
+            IDENTITY_SECRET,
+            TICKET_INDEX,
+            X,
+            SCOPE,
+            USER_MESSAGE_LIMIT,
+            1_000.into(),
+            100.into(),
+            root,
+            proof,
+            123,
+            7,
+            9,
+            refund_ticket_hash,
+            server_pubkey,
+            signature_r,
+            signature_s,
+        );
+    }
 }

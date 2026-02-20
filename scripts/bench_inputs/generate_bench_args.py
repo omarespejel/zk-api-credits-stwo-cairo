@@ -14,6 +14,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import subprocess
+import tempfile
 from pathlib import Path
 
 
@@ -60,8 +63,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ticket-index", default=None, help="Override ticket_index (felt252).")
     parser.add_argument("--x", default=None, help="Override x (felt252).")
     parser.add_argument("--scope", default=None, help="Override scope (felt252).")
+    parser.add_argument(
+        "--user-message-limit",
+        default=None,
+        help="Override user_message_limit (u32 stored as felt).",
+    )
     parser.add_argument("--deposit", default=None, help="Override deposit (u256) as decimal or hex.")
     parser.add_argument("--class-price", default=None, help="Override class_price (u256) as decimal or hex.")
+    parser.add_argument(
+        "--recompute-roots",
+        action="store_true",
+        help=(
+            "Recompute merkle_root with the helper executable "
+            "(useful after overriding user_message_limit)."
+        ),
+    )
     parser.add_argument(
         "--overwrite",
         action="store_true",
@@ -87,10 +103,43 @@ def load_base_fixture(base_dir: Path, depth: int) -> list[str]:
     return fixture
 
 
+def compute_root(identity_secret: str, user_message_limit: str, proof: list[str], cwd: Path) -> str:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".json", prefix="derive_root_", dir=cwd, delete=False
+    ) as tmp:
+        tmp.write(json.dumps([identity_secret, user_message_limit, *proof]))
+        tmp_path = Path(tmp.name)
+
+    try:
+        output = subprocess.check_output(
+            [
+                "scarb",
+                "execute",
+                "--executable-name",
+                "derive_rate_commitment_root",
+                "--arguments-file",
+                str(tmp_path),
+                "--print-program-output",
+            ],
+            cwd=str(cwd),
+            text=True,
+        )
+    finally:
+        tmp_path.unlink(missing_ok=True)
+    m = re.search(r"Program output:\n([^\n]+)", output)
+    if not m:
+        raise RuntimeError(f"Could not parse root from scarb output: {output}")
+
+    prime = (1 << 251) + (17 << 192) + 1
+    root = int(m.group(1).strip(), 0) % prime
+    return hex(root)
+
+
 def main() -> int:
     args = parse_args()
     base_dir = Path(args.base_dir)
     out_dir = Path(args.out_dir)
+    project_root = Path(__file__).resolve().parents[2]
 
     base_fields = parse_depths(args.depths)
     overrides = {
@@ -98,6 +147,7 @@ def main() -> int:
         "ticket_index": args.ticket_index,
         "x": args.x,
         "scope": args.scope,
+        "user_message_limit": args.user_message_limit,
         "deposit": args.deposit,
         "class_price": args.class_price,
     }
@@ -105,20 +155,49 @@ def main() -> int:
     for depth in base_fields:
         fixture = load_base_fixture(base_dir, depth)
 
-        # Legacy format (before scope):
+        # Legacy format v0 (before scope):
         # [identity_secret, ticket_index, x, deposit_low, deposit_high, class_price_low, class_price_high, merkle_root, ...proof]
         #
-        # Current format:
+        # Legacy format v1 (scope added):
         # [identity_secret, ticket_index, x, scope, deposit_low, deposit_high, class_price_low, class_price_high, merkle_root, ...proof]
         #
-        # We detect legacy fixtures by looking at index 8:
-        # - legacy: index 8 is proof length (small integer)
-        # - current: index 8 is merkle_root (large felt)
-        if parse_int(str(fixture[8])) <= 64:
+        # Current format v2 (scope + user_message_limit):
+        # [identity_secret, ticket_index, x, scope, user_message_limit, deposit_low, deposit_high, class_price_low, class_price_high, merkle_root, ...proof]
+        #
+        # Detection relies on where the proof length appears.
+        if len(fixture) >= 11 and parse_int(str(fixture[10])) <= 64 and parse_int(str(fixture[9])) > 64:
+            # v2
+            identity_secret = fixture[0]
+            ticket_index = fixture[1]
+            x = fixture[2]
+            scope = fixture[3]
+            user_message_limit = fixture[4]
+            deposit_low = fixture[5]
+            deposit_high = fixture[6]
+            class_price_low = fixture[7]
+            class_price_high = fixture[8]
+            merkle_root = fixture[9]
+            proof = fixture[10:]
+        elif len(fixture) >= 10 and parse_int(str(fixture[9])) <= 64 and parse_int(str(fixture[8])) > 64:
+            # v1
+            identity_secret = fixture[0]
+            ticket_index = fixture[1]
+            x = fixture[2]
+            scope = fixture[3]
+            user_message_limit = "0x20"
+            deposit_low = fixture[4]
+            deposit_high = fixture[5]
+            class_price_low = fixture[6]
+            class_price_high = fixture[7]
+            merkle_root = fixture[8]
+            proof = fixture[9:]
+        elif len(fixture) >= 9 and parse_int(str(fixture[8])) <= 64 and parse_int(str(fixture[7])) > 64:
+            # v0
             identity_secret = fixture[0]
             ticket_index = fixture[1]
             x = fixture[2]
             scope = "0x20"
+            user_message_limit = "0x20"
             deposit_low = fixture[3]
             deposit_high = fixture[4]
             class_price_low = fixture[5]
@@ -126,16 +205,7 @@ def main() -> int:
             merkle_root = fixture[7]
             proof = fixture[8:]
         else:
-            identity_secret = fixture[0]
-            ticket_index = fixture[1]
-            x = fixture[2]
-            scope = fixture[3]
-            deposit_low = fixture[4]
-            deposit_high = fixture[5]
-            class_price_low = fixture[6]
-            class_price_high = fixture[7]
-            merkle_root = fixture[8]
-            proof = fixture[9:]
+            raise ValueError(f"Unsupported fixture layout in {base_dir / f'depth_{depth}.json'}")
 
         if overrides["identity_secret"] is not None:
             identity_secret = hex(parse_int(overrides["identity_secret"]))
@@ -145,16 +215,22 @@ def main() -> int:
             x = hex(parse_int(overrides["x"]))
         if overrides["scope"] is not None:
             scope = hex(parse_int(overrides["scope"]))
+        if overrides["user_message_limit"] is not None:
+            user_message_limit = hex(parse_int(overrides["user_message_limit"]))
         if overrides["deposit"] is not None:
             deposit_low, deposit_high = split_u256(parse_int(overrides["deposit"]))
         if overrides["class_price"] is not None:
             class_price_low, class_price_high = split_u256(parse_int(overrides["class_price"]))
+
+        if args.recompute_roots or overrides["user_message_limit"] is not None:
+            merkle_root = compute_root(identity_secret, user_message_limit, proof, project_root)
 
         out = [
             identity_secret,
             ticket_index,
             x,
             scope,
+            user_message_limit,
             deposit_low,
             deposit_high,
             class_price_low,

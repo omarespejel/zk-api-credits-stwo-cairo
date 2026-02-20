@@ -46,9 +46,9 @@ BENCH_INPUTS_DIR=path/to/args ./scripts/bench/run_depths.sh
 ```
 
 For each available depth file, it writes:
-- `scripts/results/depth_<depth>_runN_proof.json`
-- `scripts/results/depth_<depth>_runN_prove.log`
-- `scripts/results/depth_<depth>_runN_verify.log`
+- `scripts/results/depth_<depth>_runN_<run_tag>_proof.json`
+- `scripts/results/depth_<depth>_runN_<run_tag>_prove.log`
+- `scripts/results/depth_<depth>_runN_<run_tag>_verify.log`
 - `scripts/results/bench_runs.csv` (raw runs)
 - `scripts/results/bench_summary.csv` (aggregated metrics)
 - `scripts/results/relation_counts.csv` (relation usage, if enabled)
@@ -73,3 +73,20 @@ Generate a compact shareable report:
 ```
 
 Note: `cairo-prove` currently does not expose constraint counts in a single CLI field; relation counts are the closest stable complexity signal.
+
+## V1 vs V2-kernel delta run
+
+To compare fixed-class v1 against the minimal v2 kernel shape (adds ECDSA + Pedersen path), run:
+
+```bash
+BENCH_ITERATIONS=10 ./scripts/bench/run_v1_v2_delta.sh
+```
+
+Outputs are written to a timestamped folder:
+- `scripts/results/v1_v2_delta_<ts>/runs.csv`
+- `scripts/results/v1_v2_delta_<ts>/summary.csv`
+- `scripts/results/v1_v2_delta_<ts>/v1_vs_v2_delta.csv`
+
+Notes:
+- This script uses `scarb prove/verify` and defaults to release profile (`SCARB_PROFILE=release`).
+- Inputs for v2 live under `scripts/bench_inputs/v2_kernel`.

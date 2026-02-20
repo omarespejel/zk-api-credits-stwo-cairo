@@ -4,6 +4,16 @@ version = "0.1.0"
 edition = "2024_07"
 
 [[target.executable]]
+name = "zk_api_credits"
+function = "zk_api_credits::main"
+
+[[target.executable]]
+name = "zk_api_credits_v2_kernel"
+function = "zk_api_credits::v2_kernel"
+
+[[target.executable]]
+name = "derive_rate_commitment_root"
+function = "zk_api_credits::derive_rate_commitment_root"
 
 [cairo]
 enable-gas = false
