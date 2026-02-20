@@ -7,8 +7,8 @@ fn hash_poseidon_single(value: felt252) -> felt252 {
     poseidon_hash_span([value].span())
 }
 
-fn hash_poseidon_pair(left: felt252, right: felt252) -> felt252 {
-    poseidon_hash_span([left, right].span())
+fn hash_poseidon_triplet(a: felt252, b: felt252, c: felt252) -> felt252 {
+    poseidon_hash_span([a, b, c].span())
 }
 
 fn assert_u256_ordering(ticket_index: felt252, deposit: u256, class_price: u256) {
@@ -22,6 +22,7 @@ fn main(
     identity_secret: felt252,
     ticket_index: felt252,
     x: felt252,
+    scope: felt252,
     deposit: u256,
     class_price: u256,
     merkle_root: felt252,
@@ -33,7 +34,7 @@ fn main(
         "INVALID_MERKLE_PROOF",
     );
 
-    let a1 = hash_poseidon_pair(identity_secret, ticket_index);
+    let a1 = hash_poseidon_triplet(identity_secret, scope, ticket_index);
     let y = identity_secret + a1 * x;
     let nullifier = hash_poseidon_single(a1);
 
@@ -44,7 +45,7 @@ fn main(
 
 #[cfg(test)]
 mod tests {
-    use super::{main, hash_poseidon_pair, hash_poseidon_single};
+    use super::{main, hash_poseidon_single, hash_poseidon_triplet};
     use openzeppelin_merkle_tree::merkle_proof::process_proof;
     use openzeppelin_merkle_tree::hashes::PoseidonCHasher;
     use core::poseidon::poseidon_hash_span;
@@ -52,6 +53,7 @@ mod tests {
     const IDENTITY_SECRET: felt252 = 42;
     const TICKET_INDEX: felt252 = 3;
     const X: felt252 = 12_345;
+    const SCOPE: felt252 = 32;
 
     #[test]
     fn test_main_happy_path() {
@@ -61,6 +63,7 @@ mod tests {
             IDENTITY_SECRET,
             TICKET_INDEX,
             X,
+            SCOPE,
             1_000.into(),
             100.into(),
             identity_commitment,
@@ -70,7 +73,7 @@ mod tests {
         assert!(output_x == X, "X_OUTPUT_MISMATCH");
         assert!(root == identity_commitment, "ROOT_MISMATCH");
 
-        let a1 = hash_poseidon_pair(IDENTITY_SECRET, TICKET_INDEX);
+        let a1 = hash_poseidon_triplet(IDENTITY_SECRET, SCOPE, TICKET_INDEX);
         let expected_y = IDENTITY_SECRET + a1 * X;
         let expected_nullifier = hash_poseidon_single(a1);
 
@@ -86,13 +89,14 @@ mod tests {
             IDENTITY_SECRET,
             0,
             X,
+            SCOPE,
             100.into(),
             100.into(),
             identity_commitment,
             proof,
         );
 
-        let a1 = hash_poseidon_pair(IDENTITY_SECRET, 0);
+        let a1 = hash_poseidon_triplet(IDENTITY_SECRET, SCOPE, 0);
         let expected_y = IDENTITY_SECRET + a1 * X;
         let expected_nullifier = hash_poseidon_single(a1);
 
@@ -110,13 +114,14 @@ mod tests {
             IDENTITY_SECRET,
             TICKET_INDEX,
             X,
+            SCOPE,
             400.into(),
             100.into(),
             identity_commitment,
             proof,
         );
 
-        let a1 = hash_poseidon_pair(IDENTITY_SECRET, TICKET_INDEX);
+        let a1 = hash_poseidon_triplet(IDENTITY_SECRET, SCOPE, TICKET_INDEX);
         let expected_y = IDENTITY_SECRET + a1 * X;
         let expected_nullifier = hash_poseidon_single(a1);
 
@@ -137,6 +142,7 @@ mod tests {
             IDENTITY_SECRET,
             TICKET_INDEX,
             X,
+            SCOPE,
             1000.into(),
             100.into(),
             merkle_root,
@@ -145,7 +151,7 @@ mod tests {
 
         assert!(root == merkle_root, "ROOT_MISMATCH");
         assert!(output_x == X, "X_OUTPUT_MISMATCH");
-        let a1 = hash_poseidon_pair(IDENTITY_SECRET, TICKET_INDEX);
+        let a1 = hash_poseidon_triplet(IDENTITY_SECRET, SCOPE, TICKET_INDEX);
         let expected_y = IDENTITY_SECRET + a1 * X;
         let expected_nullifier = hash_poseidon_single(a1);
         assert!(nullifier == expected_nullifier, "NULLIFIER_MISMATCH");
@@ -161,6 +167,7 @@ mod tests {
             IDENTITY_SECRET,
             TICKET_INDEX,
             X,
+            SCOPE,
             399.into(),
             100.into(),
             identity_commitment,
@@ -180,6 +187,7 @@ mod tests {
             IDENTITY_SECRET,
             TICKET_INDEX,
             X,
+            SCOPE,
             1000.into(),
             100.into(),
             merkle_root + 1,
@@ -204,6 +212,7 @@ mod tests {
             IDENTITY_SECRET,
             TICKET_INDEX,
             X,
+            SCOPE,
             1_000.into(),
             100.into(),
             99,
@@ -220,6 +229,7 @@ mod tests {
             IDENTITY_SECRET,
             TICKET_INDEX,
             X,
+            SCOPE,
             100.into(),
             50.into(),
             identity_commitment,

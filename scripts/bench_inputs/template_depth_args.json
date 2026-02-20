@@ -2,8 +2,13 @@
   42,
   3,
   12345,
+  32,
   1000,
+  0,
   100,
+  0,
   "MERKLE_ROOT_PLACEHOLDER",
-  ["PROOF_EL_0", "PROOF_EL_1"]
+  "MERKLE_PROOF_LEN_PLACEHOLDER",
+  "PROOF_EL_0",
+  "PROOF_EL_1"
 ]

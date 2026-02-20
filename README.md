@@ -10,7 +10,7 @@ I implemented one concrete instance and measured it end‑to‑end.
 
 - Circuit implements:
   - Poseidon Merkle membership for `identity_secret` (leaf commitment).
-  - RLN share `y = k + a * x` with `a = Poseidon(identity_secret, ticket_index)`.
+  - RLN share `y = k + a * x` with `a = Poseidon(identity_secret, scope, ticket_index)`.
   - Nullifier `Poseidon(a)` for rate limiting.
   - Solvency floor `(ticket_index + 1) * class_price <= deposit` (fixed‑class cost).
 - Benchmarked on an Apple M3 Pro (10 runs per depth: 8, 16, 20, 32):
@@ -51,7 +51,7 @@ Very roughly, his post has two layers:
 This repo only targets the first layer, and within that, the fixed‑class case:
 
 - Poseidon membership in a Merkle tree (identity leaf).
-- RLN share construction `y = k + a * x` with `a = Poseidon(identity_secret, ticket_index)`.
+- RLN share construction `y = k + a * x` with `a = Poseidon(identity_secret, scope, ticket_index)`.
 - Nullifier `Poseidon(a)` for rate limiting.
 - Solvency floor `(ticket_index + 1) * class_price <= deposit`.
 

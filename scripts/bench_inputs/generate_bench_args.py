@@ -59,6 +59,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--identity-secret", default=None, help="Override identity_secret (felt252).")
     parser.add_argument("--ticket-index", default=None, help="Override ticket_index (felt252).")
     parser.add_argument("--x", default=None, help="Override x (felt252).")
+    parser.add_argument("--scope", default=None, help="Override scope (felt252).")
     parser.add_argument("--deposit", default=None, help="Override deposit (u256) as decimal or hex.")
     parser.add_argument("--class-price", default=None, help="Override class_price (u256) as decimal or hex.")
     parser.add_argument(
@@ -81,8 +82,8 @@ def load_base_fixture(base_dir: Path, depth: int) -> list[str]:
         raise FileNotFoundError(f"Missing base fixture: {path}")
     with path.open() as f:
         fixture = json.load(f)
-    if not isinstance(fixture, list) or len(fixture) < 8:
-        raise ValueError(f"Invalid fixture structure in {path}: expected list with >=8 entries.")
+    if not isinstance(fixture, list) or len(fixture) < 9:
+        raise ValueError(f"Invalid fixture structure in {path}: expected list with >=9 entries.")
     return fixture
 
 
@@ -96,6 +97,7 @@ def main() -> int:
         "identity_secret": args.identity_secret,
         "ticket_index": args.ticket_index,
         "x": args.x,
+        "scope": args.scope,
         "deposit": args.deposit,
         "class_price": args.class_price,
     }
@@ -103,14 +105,37 @@ def main() -> int:
     for depth in base_fields:
         fixture = load_base_fixture(base_dir, depth)
 
-        identity_secret = fixture[0]
-        ticket_index = fixture[1]
-        x = fixture[2]
-        deposit_low = fixture[3]
-        deposit_high = fixture[4]
-        class_price_low = fixture[5]
-        class_price_high = fixture[6]
-        merkle_root = fixture[7]
+        # Legacy format (before scope):
+        # [identity_secret, ticket_index, x, deposit_low, deposit_high, class_price_low, class_price_high, merkle_root, ...proof]
+        #
+        # Current format:
+        # [identity_secret, ticket_index, x, scope, deposit_low, deposit_high, class_price_low, class_price_high, merkle_root, ...proof]
+        #
+        # We detect legacy fixtures by looking at index 8:
+        # - legacy: index 8 is proof length (small integer)
+        # - current: index 8 is merkle_root (large felt)
+        if parse_int(str(fixture[8])) <= 64:
+            identity_secret = fixture[0]
+            ticket_index = fixture[1]
+            x = fixture[2]
+            scope = "0x20"
+            deposit_low = fixture[3]
+            deposit_high = fixture[4]
+            class_price_low = fixture[5]
+            class_price_high = fixture[6]
+            merkle_root = fixture[7]
+            proof = fixture[8:]
+        else:
+            identity_secret = fixture[0]
+            ticket_index = fixture[1]
+            x = fixture[2]
+            scope = fixture[3]
+            deposit_low = fixture[4]
+            deposit_high = fixture[5]
+            class_price_low = fixture[6]
+            class_price_high = fixture[7]
+            merkle_root = fixture[8]
+            proof = fixture[9:]
 
         if overrides["identity_secret"] is not None:
             identity_secret = hex(parse_int(overrides["identity_secret"]))
@@ -118,6 +143,8 @@ def main() -> int:
             ticket_index = hex(parse_int(overrides["ticket_index"]))
         if overrides["x"] is not None:
             x = hex(parse_int(overrides["x"]))
+        if overrides["scope"] is not None:
+            scope = hex(parse_int(overrides["scope"]))
         if overrides["deposit"] is not None:
             deposit_low, deposit_high = split_u256(parse_int(overrides["deposit"]))
         if overrides["class_price"] is not None:
@@ -127,12 +154,13 @@ def main() -> int:
             identity_secret,
             ticket_index,
             x,
+            scope,
             deposit_low,
             deposit_high,
             class_price_low,
             class_price_high,
             merkle_root,
-            *fixture[8:],
+            *proof,
         ]
 
         out_path = out_dir / f"depth_{depth}.json"
