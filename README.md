@@ -144,7 +144,8 @@ Preflight is matrix-driven and includes:
 - `scarb test`
 - `scarb --release build`
 - smoke prove/verify on supported paths
-- negative check on known unsupported path (`v2_kernel` via raw `cairo-prove`)
+- negative check on known unsupported path (`v2_kernel` via raw `cairo-prove`) only when using the full matrix (`compat_matrix.json`)
+- CI (`compat_matrix_ci.json`) intentionally skips the raw `cairo-prove` negative-path check and runs scarb-only smoke coverage
 
 The CI command is wired in `.github/workflows/preflight.yml` and should be required in branch protection.
 

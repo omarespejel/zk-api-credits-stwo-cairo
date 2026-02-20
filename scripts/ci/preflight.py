@@ -11,6 +11,9 @@ import tempfile
 from pathlib import Path
 
 
+MATRIX_SCHEMA_VERSION = 1
+
+
 def is_valid_cairo_prove(binary_path: Path) -> bool:
     """Best-effort sanity check to avoid picking dummy `cairo-prove` binaries."""
     if not (binary_path.exists() and binary_path.is_file()):
@@ -124,6 +127,12 @@ def main() -> int:
         raise FileNotFoundError(f"matrix file not found: {matrix_path}")
 
     matrix = json.loads(matrix_path.read_text())
+    matrix_version = matrix.get("version")
+    if matrix_version != MATRIX_SCHEMA_VERSION:
+        raise RuntimeError(
+            f"unsupported matrix schema version: got {matrix_version}, "
+            f"expected {MATRIX_SCHEMA_VERSION}"
+        )
     contracts = matrix.get("contracts", [])
     if not contracts:
         raise RuntimeError("compat matrix has no contracts")
