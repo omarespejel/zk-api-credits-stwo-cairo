@@ -20,10 +20,10 @@ import tempfile
 from pathlib import Path
 
 
-def parse_int(value: str) -> int:
-    value = value.strip()
+def parse_int(value: str | int) -> int:
     if isinstance(value, int):
         return value
+    value = str(value).strip()
     if value.lower().startswith("0x"):
         return int(value, 16)
     if value.lower().startswith("0b"):

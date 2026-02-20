@@ -17,12 +17,20 @@ if [[ -z "${CAIRO_PROVE}" ]]; then
   done
 fi
 CIRCUIT_BINARY="${PROJECT_ROOT}/target/release/zk_api_credits.executable.json"
-RESULTS_DIR="${PROJECT_ROOT}/scripts/results"
+RESULTS_DIR="${RESULTS_DIR:-${PROJECT_ROOT}/scripts/results/main_baseline}"
 
 BENCH_DEPTHS=${BENCH_DEPTHS:-"8 16 20 32"}
 ITERATIONS=${BENCH_ITERATIONS:-5}
 COLLECT_RELATION_COUNTS=${COLLECT_RELATION_COUNTS:-1}
 BENCH_INPUTS_DIR=${BENCH_INPUTS_DIR:-"${PROJECT_ROOT}/scripts/bench_inputs"}
+PROVER_ENGINE="cairo-prove"
+PROFILE="release"
+TARGET_NAME="zk_api_credits"
+MACHINE=$(python3 - <<'PY'
+import platform
+print(f"{platform.system()}-{platform.machine()}")
+PY
+)
 
 if [[ ! -x "${CAIRO_PROVE}" ]]; then
   echo "cairo-prove binary not found at ${CAIRO_PROVE}" >&2
@@ -53,7 +61,7 @@ RAW_RESULTS_FILE="${RESULTS_DIR}/bench_runs.csv"
 SUMMARY_FILE="${RESULTS_DIR}/bench_summary.csv"
 
 cat > "${RAW_RESULTS_FILE}" <<EOF
-run_id,depth,iteration,prove_wall_ms,prove_log_ms,verify_wall_ms,proof_size_bytes,proof_path,prove_log_path,verify_log_path
+run_tag,prover_engine,profile,target,machine,run_id,depth,iteration,prove_wall_ms,prove_log_ms,verify_wall_ms,proof_size_bytes,proof_path,prove_log_path,verify_log_path
 EOF
 
 run_id=0
@@ -115,13 +123,13 @@ PY
 )
     verify_wall_ms=$((verify_end_ms - verify_start_ms))
 
-    echo "${run_id},${depth},${iteration},${prove_wall_ms},${prove_log_ms},${verify_wall_ms},${proof_size_bytes},${proof_file},${prove_log},${verify_log}" >> "${RAW_RESULTS_FILE}"
+    echo "${RUN_TAG},${PROVER_ENGINE},${PROFILE},${TARGET_NAME},${MACHINE},${run_id},${depth},${iteration},${prove_wall_ms},${prove_log_ms},${verify_wall_ms},${proof_size_bytes},${proof_file},${prove_log},${verify_log}" >> "${RAW_RESULTS_FILE}"
 
     echo "depth=${depth},iter=${iteration},prove_wall_ms=${prove_wall_ms},prove_log_ms=${prove_log_ms},verify_ms=${verify_wall_ms},proof_bytes=${proof_size_bytes}"
   done
 done
 
-python3 - "${RAW_RESULTS_FILE}" "${SUMMARY_FILE}" <<'PY'
+python3 - "${RAW_RESULTS_FILE}" "${SUMMARY_FILE}" "${RUN_TAG}" "${PROVER_ENGINE}" "${PROFILE}" "${TARGET_NAME}" "${MACHINE}" <<'PY'
 import csv
 import math
 from collections import defaultdict
@@ -144,6 +152,11 @@ def quantile(data, q):
 
 raw_path = Path(sys.argv[1])
 out_path = Path(sys.argv[2])
+run_tag = sys.argv[3]
+prover_engine = sys.argv[4]
+profile = sys.argv[5]
+target = sys.argv[6]
+machine = sys.argv[7]
 rows = list(csv.DictReader(open(raw_path)))
 
 agg = defaultdict(lambda: {
@@ -164,6 +177,11 @@ for row in rows:
 with open(out_path, "w", newline="") as f:
     w = csv.writer(f)
     w.writerow([
+        "run_tag",
+        "prover_engine",
+        "profile",
+        "target",
+        "machine",
         "depth",
         "samples",
         "prove_wall_ms_min",
@@ -194,6 +212,11 @@ with open(out_path, "w", newline="") as f:
         ps = data["proof_size_bytes"]
 
         w.writerow([
+            run_tag,
+            prover_engine,
+            profile,
+            target,
+            machine,
             depth,
             len(pw),
             min(pw),
@@ -223,6 +246,25 @@ if [[ "${COLLECT_RELATION_COUNTS}" -eq 1 ]]; then
     --pattern "depth_*_${RUN_TAG}_verify.log" \
     --out "${RESULTS_DIR}/relation_counts.csv"
 fi
+
+python3 - <<PY
+import json
+from datetime import datetime, timezone
+
+meta = {
+    "run_tag": "${RUN_TAG}",
+    "prover_engine": "${PROVER_ENGINE}",
+    "profile": "${PROFILE}",
+    "target": "${TARGET_NAME}",
+    "machine": "${MACHINE}",
+    "bench_depths": "${BENCH_DEPTHS}".split(),
+    "iterations": int("${ITERATIONS}"),
+    "cairo_prove": "${CAIRO_PROVE}",
+    "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+}
+with open("${RESULTS_DIR}/bench_meta.json", "w") as f:
+    json.dump(meta, f, indent=2)
+PY
 
 echo "Wrote raw runs: ${RAW_RESULTS_FILE}"
 echo "Wrote summary: ${SUMMARY_FILE}"

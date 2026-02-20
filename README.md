@@ -42,6 +42,16 @@ This repo:
 
 It is **not** a protocol proposal and **not** meant for production use. It’s an implementation artifact to test whether one branch of Davide’s design behaves well in practice.
 
+## Support matrix contract
+
+Runtime compatibility is tracked in `compat_matrix.json` and treated as a contract:
+
+- `zk_api_credits` -> `cairo-prove` : supported
+- `zk_api_credits_v2_kernel` -> `scarb prove/verify` : supported
+- `zk_api_credits_v2_kernel` -> raw `cairo-prove` : unsupported (expected failure today)
+
+This matrix is enforced by preflight and CI so unsupported paths cannot be accidentally reported as working.
+
 ## How it relates to Davide’s post
 
 Very roughly, his post has two layers:
@@ -64,6 +74,7 @@ The refund / E(R) layer (in‑circuit signature verification, homomorphic update
 The answer from this repo is: **for human‑paced LLM/API usage, yes.** Verification is ~65ms, proof sizes are ~14MB, and proving can be pushed into pre‑generation between user requests.
 
 Small update: there is now a separate `v2_kernel` executable used only for overhead benchmarking. It is intentionally minimal (adds a signature-check path and commitment update path) and is **not** a full implementation of the refund protocol flow.
+At the moment, this `v2_kernel` path is measured with `scarb prove/verify` (simulation route for unsupported builtins). Running the same executable directly via `cairo-prove` currently fails in this environment.
 
 ## Snapshot benchmark results
 
@@ -77,13 +88,13 @@ Latest clean run (2026-02-14T23:38:01Z UTC, 10 iterations, Apple M3 Pro):
 | 20 | 10400 | 64 | 14436847 |
 | 32 | 13169 | 64 | 14472551 |
 
-More detailed stats (min/p95/max, relation counts, etc.) are in `scripts/results/bench_report.md` and `scripts/results/bench_summary.csv`.
+More detailed stats (min/p95/max, relation counts, etc.) are in `scripts/results/main_baseline/bench_report.md` and `scripts/results/main_baseline/bench_summary.csv`.
 
 Tiny note on "proof size": the files in `scripts/results/*_proof.json` are pretty-printed JSON, so they look huge.
 If you just want a quick "ok how big is this really" number, gzip is a decent proxy:
 
 ```bash
-python3 scripts/proof_size.py scripts/results/depth_16_run1_proof.json
+python3 scripts/proof_size.py scripts/results/main_baseline/depth_16_run1_<run_tag>_proof.json
 ```
 
 ## Scope and non‑goals
@@ -112,3 +123,21 @@ scarb build
   --arguments-file scripts/bench_inputs/template_depth_args.json
 /path/to/cairo-prove verify ./proof.json
 ```
+
+## Preflight and CI gate
+
+Run preflight before pushing:
+
+```bash
+python3 scripts/ci/preflight.py
+```
+
+Preflight is matrix-driven and includes:
+- `scarb test`
+- `scarb --release build`
+- smoke prove/verify on supported paths
+- negative check on known unsupported path (`v2_kernel` via raw `cairo-prove`)
+
+The same command is wired in CI (`.github/workflows/preflight.yml`) and should be required in branch protection.
+
+For external sharing, use `PUBLISH_CHECKLIST.md`.

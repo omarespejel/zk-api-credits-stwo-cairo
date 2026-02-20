@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "updated_at_utc": "2026-02-20T00:00:00Z",
+  "notes": "Support matrix contract for smoke-proof paths used by preflight and CI.",
+  "contracts": [
+    {
+      "id": "main_cairo_prove",
+      "target": "zk_api_credits",
+      "engine": "cairo-prove",
+      "profile": "release",
+      "status": "supported",
+      "binary": "target/release/zk_api_credits.executable.json",
+      "arguments_file": "scripts/bench_inputs/depth_8.json",
+      "verify": true
+    },
+    {
+      "id": "v2_kernel_scarb_prove",
+      "target": "zk_api_credits_v2_kernel",
+      "engine": "scarb-prove",
+      "profile": "release",
+      "status": "supported",
+      "arguments_file": "scripts/bench_inputs/v2_kernel/depth_8.json",
+      "verify": true
+    },
+    {
+      "id": "v2_kernel_cairo_prove",
+      "target": "zk_api_credits_v2_kernel",
+      "engine": "cairo-prove",
+      "profile": "release",
+      "status": "unsupported",
+      "binary": "target/release/zk_api_credits_v2_kernel.executable.json",
+      "arguments_file": "scripts/bench_inputs/v2_kernel/depth_8.json",
+      "expected_error_substring": "Memory(AddressNotRelocatable)"
+    }
+  ]
+}
