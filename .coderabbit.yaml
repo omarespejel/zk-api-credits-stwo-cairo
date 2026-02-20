@@ -1,0 +1,44 @@
+language: "en-US"
+early_access: false
+
+reviews:
+  profile: "assertive"
+  high_level_summary: true
+  review_status: true
+  commit_status: true
+  fail_commit_status: true
+  changed_files_summary: true
+  sequence_diagrams: false
+  assess_linked_issues: true
+  related_issues: false
+  related_prs: false
+  suggested_labels: false
+  suggested_reviewers: false
+  auto_assign_reviewers: false
+  path_filters:
+    - "!scripts/results/**"
+    - "!target/**"
+    - "!**/*.proof.json"
+  path_instructions:
+    - path: "src/**/*.cairo"
+      instructions: |
+        Prioritize constraint soundness, witness/public boundary correctness, and arithmetic edge cases.
+        Treat any regression in solvency, membership, nullifier derivation, or ticket-range checks as high severity.
+    - path: "scripts/bench/**/*.sh"
+      instructions: |
+        Verify reproducibility guardrails.
+        Benchmark outputs must remain self-describing with metadata columns:
+        prover_engine, profile, target, run_tag, machine.
+    - path: "scripts/ci/**/*"
+      instructions: |
+        Check that unsupported paths are explicitly validated as failures.
+        Preflight must fail hard on matrix drift.
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+    base_branches:
+      - "main"
+
+chat:
+  auto_reply: true

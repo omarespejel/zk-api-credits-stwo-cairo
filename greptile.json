@@ -1,0 +1,46 @@
+{
+  "strictness": 2,
+  "commentTypes": [
+    "logic",
+    "syntax",
+    "style",
+    "info"
+  ],
+  "triggerOnUpdates": true,
+  "fileChangeLimit": 250,
+  "instructions": "Prioritize correctness and security over style. Focus on circuit soundness, witness/public boundary mistakes, Merkle membership logic, nullifier/share derivation, and solvency/range constraints. Treat benchmark reproducibility regressions as important. Avoid low-value nitpicks.",
+  "ignorePatterns": "target/**\nscripts/results/**\n**/*_proof.json\n**/*.proof.json\n**/__pycache__/**",
+  "updateExistingSummaryComment": true,
+  "statusCheck": true,
+  "statusCommentsEnabled": true,
+  "includeConfidenceScore": true,
+  "includeSequenceDiagram": false,
+  "customContext": {
+    "rules": [
+      {
+        "rule": "Any change to ticket bounds, solvency checks, or nullifier/share equations must preserve protocol semantics and should be backed by tests.",
+        "scope": [
+          "src/**/*.cairo",
+          "scripts/bench_inputs/**/*.py"
+        ]
+      },
+      {
+        "rule": "Benchmark scripts must emit self-describing metadata to avoid mixing prover engines or profiles by accident.",
+        "scope": [
+          "scripts/bench/**/*.sh",
+          "scripts/bench/**/*.py"
+        ]
+      }
+    ],
+    "files": [
+      {
+        "path": "README.md",
+        "description": "Protocol scope, constraints, and caveats."
+      },
+      {
+        "path": "scripts/bench/README.md",
+        "description": "Benchmark methodology and reproducibility contract."
+      }
+    ]
+  }
+}
