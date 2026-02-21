@@ -11,6 +11,7 @@ SPEC.loader.exec_module(MODULE)
 check_alignment = MODULE.check_alignment
 parse_program_output = MODULE.parse_program_output
 to_args = MODULE.to_args
+validate_vector = MODULE.validate_vector
 
 
 class InteropHelperTests(unittest.TestCase):
@@ -45,6 +46,59 @@ Saving output to: target/execute/foo
                 {"nullifier": 7, "x": 10, "y": 20, "root": 30},
                 {"x": 10, "scope": 5, "y": 999, "root": 30, "nullifier": 7},
                 30,
+            )
+
+    def test_validate_vector_ok(self):
+        vector = validate_vector(
+            {
+                "name": "shared",
+                "identity_secret": "42",
+                "user_message_limit": 32,
+                "ticket_index": 3,
+                "x": 12345,
+                "scope": 32,
+                "deposit_low": "1000",
+                "deposit_high": 0,
+                "class_price_low": 100,
+                "class_price_high": 0,
+            },
+            Path("vec.json"),
+        )
+        self.assertEqual(vector["identity_secret"], 42)
+        self.assertEqual(vector["user_message_limit"], 32)
+        self.assertEqual(vector["name"], "shared")
+
+    def test_validate_vector_missing_required_key(self):
+        with self.assertRaisesRegex(ValueError, "missing required key 'identity_secret'"):
+            validate_vector(
+                {
+                    "user_message_limit": 32,
+                    "ticket_index": 3,
+                    "x": 12345,
+                    "scope": 32,
+                    "deposit_low": 1000,
+                    "deposit_high": 0,
+                    "class_price_low": 100,
+                    "class_price_high": 0,
+                },
+                Path("vec.json"),
+            )
+
+    def test_validate_vector_invalid_required_type(self):
+        with self.assertRaisesRegex(ValueError, "key 'user_message_limit' must be int-coercible"):
+            validate_vector(
+                {
+                    "identity_secret": 42,
+                    "user_message_limit": "thirty-two",
+                    "ticket_index": 3,
+                    "x": 12345,
+                    "scope": 32,
+                    "deposit_low": 1000,
+                    "deposit_high": 0,
+                    "class_price_low": 100,
+                    "class_price_high": 0,
+                },
+                Path("vec.json"),
             )
 
 

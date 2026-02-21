@@ -7,6 +7,18 @@ import subprocess
 import sys
 from pathlib import Path
 
+REQUIRED_INT_KEYS = (
+    "identity_secret",
+    "user_message_limit",
+    "ticket_index",
+    "x",
+    "scope",
+    "deposit_low",
+    "deposit_high",
+    "class_price_low",
+    "class_price_high",
+)
+
 
 def run(cmd: list[str], cwd: Path) -> str:
     completed = subprocess.run(
@@ -46,6 +58,28 @@ def parse_program_output(text: str) -> list[int]:
 
 def to_args(values: list[int]) -> str:
     return ",".join(str(v) for v in values)
+
+
+def validate_vector(vector_raw: object, vector_path: Path) -> dict[str, int | str]:
+    if not isinstance(vector_raw, dict):
+        raise ValueError(f"vector must be a JSON object: {vector_path}")
+
+    vector: dict[str, int | str] = {}
+    for key in REQUIRED_INT_KEYS:
+        if key not in vector_raw:
+            raise ValueError(f"vector missing required key '{key}' in {vector_path}")
+        value = vector_raw[key]
+        try:
+            vector[key] = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"vector key '{key}' must be int-coercible, got {value!r} in {vector_path}"
+            ) from exc
+
+    if "name" in vector_raw:
+        vector["name"] = str(vector_raw["name"])
+
+    return vector
 
 
 def parse_args() -> argparse.Namespace:
@@ -206,7 +240,8 @@ def main() -> int:
     if not vector_path.exists():
         raise FileNotFoundError(f"vector file not found: {vector_path}")
 
-    vector = json.loads(vector_path.read_text())
+    vector_raw = json.loads(vector_path.read_text())
+    vector = validate_vector(vector_raw, vector_path)
 
     if not args.skip_build:
         run([args.scarb_our, "--release", "build"], cwd=our_repo)
