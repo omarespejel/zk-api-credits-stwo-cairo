@@ -6,12 +6,13 @@ from pathlib import Path
 
 DEFAULTS = {
     "refund_commitment_prev": "0x7b",
-    "refund_amount": "0x7",
+    "refund_amount": "0x1",
+    "refund_commitment_next_expected": "0x3639abd57ba0779f4fdd845168e3815a72834c875ee135981660ebedaa68770",
     "remask_nonce": "0x9",
-    "refund_ticket_hash": "0x2d6479c0758efbb5aa07d35ed5454d728637fceab7ba544d3ea95403a5630a8",
-    "server_pubkey": "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
-    "signature_r": "0x6ff7b413a8457ef90f326b5280600a4473fef49b5b1dcdfcd7f42ca7aa59c69",
-    "signature_s": "0x23a9747ed71abc5cb956c0df44ee8638b65b3e9407deade65de62247b8fd77",
+    "refund_ticket_hash": "0xaa7f79d63dc72183a26e87e70b766217adb8536a14da8cbe5ac1249b93fe93",
+    "server_pubkey": "0x3fcb8c6e0c6062cac02df9ff0f3775b2263874a4cbf42643fc26713e5a8ceb6",
+    "signature_r": "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+    "signature_s": "0x67075b978a9f74ca9d515e59bef04b9db63216b02f159a1bd77ec0cb88b0e6",
 }
 
 
@@ -55,6 +56,7 @@ def main() -> int:
             *data,
             extras["refund_commitment_prev"],
             extras["refund_amount"],
+            extras["refund_commitment_next_expected"],
             extras["remask_nonce"],
             extras["refund_ticket_hash"],
             extras["server_pubkey"],

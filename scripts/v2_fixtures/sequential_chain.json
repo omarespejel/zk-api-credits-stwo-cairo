@@ -1,0 +1,74 @@
+[
+  {
+    "step": 0,
+    "ticket_index": "0x0",
+    "refund_commitment_prev": "0x7b",
+    "refund_commitment_next_expected": "0x3639abd57ba0779f4fdd845168e3815a72834c875ee135981660ebedaa68770",
+    "refund_amount": "0x1",
+    "scope": "0x20",
+    "refund_ticket_hash": "0x6a726da140dddfb54ceeb6aacdac2f097a4b5e6e78df15f8cd09af159022b74",
+    "server_pubkey": "0x3fcb8c6e0c6062cac02df9ff0f3775b2263874a4cbf42643fc26713e5a8ceb6",
+    "signature_r": "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+    "signature_s": "0x663aebbd55ab64e9bc9ce411f8e3cda1dad2faa2da82c6cea4d588d88f6ddc7"
+  },
+  {
+    "step": 1,
+    "ticket_index": "0x1",
+    "refund_commitment_prev": "0x3639abd57ba0779f4fdd845168e3815a72834c875ee135981660ebedaa68770",
+    "refund_commitment_next_expected": "0x3fba46421cb94462487f1ad9a74747fde0df6e2130934bb558a874344f3fefa",
+    "refund_amount": "0x1",
+    "scope": "0x20",
+    "refund_ticket_hash": "0x6282965fc941f7319e729f5789de7f90505161edd1aeb464bf60dd69c1ef86e",
+    "server_pubkey": "0x3fcb8c6e0c6062cac02df9ff0f3775b2263874a4cbf42643fc26713e5a8ceb6",
+    "signature_r": "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+    "signature_s": "0x5e4b147bde0f7c660e20ccbeb5161e28b0d8fe223352653a972cb72cc13aac1"
+  },
+  {
+    "step": 2,
+    "ticket_index": "0x2",
+    "refund_commitment_prev": "0x3fba46421cb94462487f1ad9a74747fde0df6e2130934bb558a874344f3fefa",
+    "refund_commitment_next_expected": "0x4f4f8f7dc32a0c888226c3707b1c6ddb6ba86a330ff177bb38ef8920df45772",
+    "refund_amount": "0x1",
+    "scope": "0x20",
+    "refund_ticket_hash": "0x60096a3a3f7a23a0d93162bd96fc3cedbc4665aa6aca06732c50a99b46a28c0",
+    "server_pubkey": "0x3fcb8c6e0c6062cac02df9ff0f3775b2263874a4cbf42643fc26713e5a8ceb6",
+    "signature_r": "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+    "signature_s": "0x5bd1e8565447a8d548df9024c233db861cce01decc6db749041c835e45edb13"
+  },
+  {
+    "step": 3,
+    "ticket_index": "0x3",
+    "refund_commitment_prev": "0x4f4f8f7dc32a0c888226c3707b1c6ddb6ba86a330ff177bb38ef8920df45772",
+    "refund_commitment_next_expected": "0x20352aa070eaf3468c5b4dc1a2624a1a7056b909da8d42f03880cc4ec480be5",
+    "refund_amount": "0x1",
+    "scope": "0x20",
+    "refund_ticket_hash": "0x699af39459686697fec8d5edea3764219e3d98f32e9800cbb646bcc8960d2b2",
+    "server_pubkey": "0x3fcb8c6e0c6062cac02df9ff0f3775b2263874a4cbf42643fc26713e5a8ceb6",
+    "signature_r": "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+    "signature_s": "0x656371b06e35ebcc6e770355156f02b9fec53527903bb1a18e12968b9558505"
+  },
+  {
+    "step": 4,
+    "ticket_index": "0x4",
+    "refund_commitment_prev": "0x20352aa070eaf3468c5b4dc1a2624a1a7056b909da8d42f03880cc4ec480be5",
+    "refund_commitment_next_expected": "0x236bcd05f8a87f39960c605e1315ce017970df9d1c508a484f748f80833ed6c",
+    "refund_amount": "0x1",
+    "scope": "0x20",
+    "refund_ticket_hash": "0x27df23f9e35ff71f0f095ccf947deeb8279e646c2dd2d62f51a7658ba2b9216",
+    "server_pubkey": "0x3fcb8c6e0c6062cac02df9ff0f3775b2263874a4cbf42643fc26713e5a8ceb6",
+    "signature_r": "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+    "signature_s": "0x23a7a215f82d7c537eb78a36bfb58d50882600a08f76870529733f4ea204469"
+  },
+  {
+    "step": 5,
+    "ticket_index": "0x5",
+    "refund_commitment_prev": "0x236bcd05f8a87f39960c605e1315ce017970df9d1c508a484f748f80833ed6c",
+    "refund_commitment_next_expected": "0x7f8d8af3815ae1954589fcaca67ce4f344363bc7abab56823d08b58f8e0e005",
+    "refund_amount": "0x1",
+    "scope": "0x20",
+    "refund_ticket_hash": "0x409b5a7aefcc8e318dc2a8d93db099ab28a9a4989ffc56e4563874011f806d3",
+    "server_pubkey": "0x3fcb8c6e0c6062cac02df9ff0f3775b2263874a4cbf42643fc26713e5a8ceb6",
+    "signature_r": "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+    "signature_s": "0x3c63d897049a1365fd70d64068e83843893140cd01a007ba2e044dc41ecb926"
+  }
+]
