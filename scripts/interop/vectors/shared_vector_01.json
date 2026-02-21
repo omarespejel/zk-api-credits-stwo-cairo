@@ -1,0 +1,12 @@
+{
+  "name": "shared_vector_01",
+  "identity_secret": 42,
+  "scope": 32,
+  "ticket_index": 3,
+  "x": 12345,
+  "user_message_limit": 32,
+  "deposit_low": 1000,
+  "deposit_high": 0,
+  "class_price_low": 100,
+  "class_price_high": 0
+}
