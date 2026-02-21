@@ -19,15 +19,23 @@ REQUIRED_INT_KEYS = (
     "class_price_high",
 )
 
+RUN_TIMEOUT_SEC = 300
+
 
 def run(cmd: list[str], cwd: Path) -> str:
-    completed = subprocess.run(
-        cmd,
-        cwd=str(cwd),
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
+    try:
+        completed = subprocess.run(
+            cmd,
+            cwd=str(cwd),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=RUN_TIMEOUT_SEC,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"command timed out after {RUN_TIMEOUT_SEC}s in {cwd}: {' '.join(cmd)}"
+        ) from exc
     if completed.returncode != 0:
         raise RuntimeError(
             f"command failed ({completed.returncode}) in {cwd}: {' '.join(cmd)}\n{completed.stdout}"
