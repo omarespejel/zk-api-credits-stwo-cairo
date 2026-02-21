@@ -149,7 +149,7 @@ def parse_args() -> argparse.Namespace:
 
 def load_vector(vector_path: Path) -> dict[str, int | str]:
     try:
-        vector_raw = json.loads(vector_path.read_text())
+        vector_raw = json.loads(vector_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise ValueError(f"invalid json in vector file {vector_path}: {exc}") from exc
     return validate_vector(vector_raw, vector_path)
@@ -183,6 +183,9 @@ def derive_root(our_repo: Path, scarb_our: str, secret: int, limit: int) -> int:
 
 
 def run_our_main(our_repo: Path, scarb_our: str, vector: dict, root: int) -> dict[str, int]:
+    # zk_api_credits executable arg order:
+    # [identity_secret, ticket_index, x, scope, user_message_limit,
+    #  deposit_low, deposit_high, class_price_low, class_price_high, root, proof_len]
     args = [
         vector["identity_secret"],
         vector["ticket_index"],
