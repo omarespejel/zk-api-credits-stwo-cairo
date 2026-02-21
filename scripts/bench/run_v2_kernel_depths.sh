@@ -30,7 +30,7 @@ else
 fi
 
 echo "building once (${SCARB_PROFILE} profile) ..."
-scarb "${SCARB_GLOBAL_ARGS[@]}" build >/dev/null
+scarb ${SCARB_GLOBAL_ARGS[@]+"${SCARB_GLOBAL_ARGS[@]}"} build >/dev/null
 
 RAW="${RESULTS_DIR}/runs.csv"
 SUMMARY="${RESULTS_DIR}/summary.csv"
@@ -55,7 +55,7 @@ import time
 print(int(time.time() * 1000))
 PY
 )
-    scarb "${SCARB_GLOBAL_ARGS[@]}" prove --execute --no-build \
+    scarb ${SCARB_GLOBAL_ARGS[@]+"${SCARB_GLOBAL_ARGS[@]}"} prove --execute --no-build \
       --executable-name "${TARGET_NAME}" \
       --arguments-file "${args_file}" >"${prove_log}" 2>&1
     end_ms=$(python3 - <<'PY'
@@ -82,7 +82,7 @@ import time
 print(int(time.time() * 1000))
 PY
 )
-    scarb "${SCARB_GLOBAL_ARGS[@]}" verify --proof-file "${proof_path}" >/dev/null 2>&1
+    scarb ${SCARB_GLOBAL_ARGS[@]+"${SCARB_GLOBAL_ARGS[@]}"} verify --proof-file "${proof_path}" >/dev/null 2>&1
     verify_end_ms=$(python3 - <<'PY'
 import time
 print(int(time.time() * 1000))
@@ -177,6 +177,13 @@ out = Path(sys.argv[3])
 baseline_by_depth = {int(r["depth"]): r for r in baseline}
 v2_by_depth = {int(r["depth"]): r for r in v2}
 
+def read_p50(row, wall_key, compact_key):
+    if wall_key in row:
+        return float(row[wall_key])
+    if compact_key in row:
+        return float(row[compact_key])
+    raise KeyError(f"missing expected key pair: {wall_key}/{compact_key}")
+
 with out.open("w", newline="") as f:
     w = csv.writer(f)
     w.writerow([
@@ -194,12 +201,12 @@ with out.open("w", newline="") as f:
     for depth in sorted(set(baseline_by_depth) & set(v2_by_depth)):
         b = baseline_by_depth[depth]
         v = v2_by_depth[depth]
-        v1_prove = float(b["prove_wall_ms_p50"])
-        v2_prove = float(v["prove_p50_ms"])
-        v1_verify = float(b["verify_wall_ms_p50"])
-        v2_verify = float(v["verify_p50_ms"])
-        v1_size = float(b["proof_size_bytes_p50"])
-        v2_size = float(v["size_p50_bytes"])
+        v1_prove = read_p50(b, "prove_wall_ms_p50", "prove_p50_ms")
+        v2_prove = read_p50(v, "prove_wall_ms_p50", "prove_p50_ms")
+        v1_verify = read_p50(b, "verify_wall_ms_p50", "verify_p50_ms")
+        v2_verify = read_p50(v, "verify_wall_ms_p50", "verify_p50_ms")
+        v1_size = read_p50(b, "proof_size_bytes_p50", "size_p50_bytes")
+        v2_size = read_p50(v, "proof_size_bytes_p50", "size_p50_bytes")
 
         prove_delta = ((v2_prove - v1_prove) / v1_prove) * 100 if v1_prove else 0.0
         verify_delta = ((v2_verify - v1_verify) / v1_verify) * 100 if v1_verify else 0.0

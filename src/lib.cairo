@@ -88,7 +88,6 @@ fn v2_kernel(
     refund_amount: felt252,
     refund_commitment_next_expected: felt252,
     remask_nonce: felt252,
-    refund_ticket_hash: felt252,
     server_pubkey: felt252,
     signature_r: felt252,
     signature_s: felt252,
@@ -108,8 +107,6 @@ fn v2_kernel(
     let refund_ticket_hash_expected = build_refund_ticket_hash(
         refund_commitment_prev, refund_amount, ticket_index, scope,
     );
-    assert!(refund_ticket_hash == refund_ticket_hash_expected, "REFUND_TICKET_HASH_MISMATCH");
-
     let signature_ok = check_ecdsa_signature(
         refund_ticket_hash_expected, server_pubkey, signature_r, signature_s,
     );
@@ -373,9 +370,6 @@ mod tests {
         let refund_commitment_next_expected =
             0x3639abd57ba0779f4fdd845168e3815a72834c875ee135981660ebedaa68770;
         let remask_nonce = 9;
-
-        let refund_ticket_hash =
-            0xaa7f79d63dc72183a26e87e70b766217adb8536a14da8cbe5ac1249b93fe93;
         let server_pubkey =
             0x3fcb8c6e0c6062cac02df9ff0f3775b2263874a4cbf42643fc26713e5a8ceb6;
         let signature_r =
@@ -403,7 +397,6 @@ mod tests {
             refund_amount,
             refund_commitment_next_expected,
             remask_nonce,
-            refund_ticket_hash,
             server_pubkey,
             signature_r,
             signature_s,
@@ -425,12 +418,10 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected: "REFUND_TICKET_HASH_MISMATCH")]
-    fn test_v2_kernel_rejects_unbound_refund_hash() {
+    #[should_panic(expected: "INVALID_REFUND_SIGNATURE")]
+    fn test_v2_kernel_rejects_mismatched_bound_fields_with_same_signature() {
         let proof: Array<felt252> = array![];
         let root = rate_commitment();
-        let refund_ticket_hash =
-            0xaa7f79d63dc72183a26e87e70b766217adb8536a14da8cbe5ac1249b93fe93 + 1;
         let server_pubkey =
             0x3fcb8c6e0c6062cac02df9ff0f3775b2263874a4cbf42643fc26713e5a8ceb6;
         let signature_r =
@@ -448,10 +439,9 @@ mod tests {
             root,
             proof,
             123,
-            1,
-            0x3639abd57ba0779f4fdd845168e3815a72834c875ee135981660ebedaa68770,
+            2,
+            0x7b99cc88f3a162c75f4a2f9a11b9c7fa10f48af0f7a7c46b2d449d5f56f8ce5,
             9,
-            refund_ticket_hash,
             server_pubkey,
             signature_r,
             signature_s,
@@ -463,8 +453,6 @@ mod tests {
     fn test_v2_kernel_rejects_wrong_expected_state_transition() {
         let proof: Array<felt252> = array![];
         let root = rate_commitment();
-        let refund_ticket_hash =
-            0xaa7f79d63dc72183a26e87e70b766217adb8536a14da8cbe5ac1249b93fe93;
         let server_pubkey =
             0x3fcb8c6e0c6062cac02df9ff0f3775b2263874a4cbf42643fc26713e5a8ceb6;
         let signature_r =
@@ -485,7 +473,6 @@ mod tests {
             1,
             0x3639abd57ba0779f4fdd845168e3815a72834c875ee135981660ebedaa68771,
             9,
-            refund_ticket_hash,
             server_pubkey,
             signature_r,
             signature_s,
@@ -497,8 +484,6 @@ mod tests {
     fn test_v2_kernel_rejects_bad_signature() {
         let proof: Array<felt252> = array![];
         let root = rate_commitment();
-        let refund_ticket_hash =
-            0xaa7f79d63dc72183a26e87e70b766217adb8536a14da8cbe5ac1249b93fe93;
         let server_pubkey =
             0x3fcb8c6e0c6062cac02df9ff0f3775b2263874a4cbf42643fc26713e5a8ceb6;
         let signature_r =
@@ -519,7 +504,6 @@ mod tests {
             1,
             0x3639abd57ba0779f4fdd845168e3815a72834c875ee135981660ebedaa68770,
             9,
-            refund_ticket_hash,
             server_pubkey,
             signature_r,
             signature_s,

@@ -5,6 +5,11 @@ import subprocess
 import time
 from pathlib import Path
 
+V2_FIXED_PREFIX_LEN = 11
+V2_PROOF_LEN_IDX = 10
+V2_TAIL_LEN = 7
+V2_REMASK_NONCE_OFFSET = 3
+
 
 def parse_int(value: str | int) -> int:
     if isinstance(value, int):
@@ -45,13 +50,19 @@ def parse_proof_path(prove_output: str) -> str:
 
 
 def extract_prefix_and_remask(base_args: list[int]) -> tuple[list[int], int]:
-    if len(base_args) < 12:
+    # v2_kernel args (0-indexed):
+    # 0..9   fixed public/private prefix ending at merkle_root
+    # 10     merkle_proof length
+    # 11..   merkle_proof elements
+    # tail   [refund_commitment_prev, refund_amount, refund_commitment_next_expected,
+    #         remask_nonce, server_pubkey, signature_r, signature_s]
+    if len(base_args) < V2_FIXED_PREFIX_LEN + 1:
         raise ValueError("base v2 args too short")
-    proof_len = parse_int(base_args[10])
-    prefix_len = 11 + proof_len
-    if len(base_args) < prefix_len + 8:
+    proof_len = parse_int(base_args[V2_PROOF_LEN_IDX])
+    prefix_len = V2_FIXED_PREFIX_LEN + proof_len
+    if len(base_args) < prefix_len + V2_TAIL_LEN:
         raise ValueError("base v2 args malformed: expected v2 extras tail")
-    remask_nonce = parse_int(base_args[prefix_len + 3])
+    remask_nonce = parse_int(base_args[prefix_len + V2_REMASK_NONCE_OFFSET])
     return [parse_int(v) for v in base_args[:prefix_len]], remask_nonce
 
 
@@ -65,7 +76,6 @@ def build_v2_args(prefix: list[int], remask_nonce: int, step: dict) -> list[int]
             parse_int(step["refund_amount"]),
             parse_int(step["refund_commitment_next_expected"]),
             remask_nonce,
-            parse_int(step["refund_ticket_hash"]),
             parse_int(step["server_pubkey"]),
             parse_int(step["signature_r"]),
             parse_int(step["signature_s"]),
