@@ -59,7 +59,9 @@ rough reading:
 ## proof size note (important)
 
 the raw proof file is pretty json, so size looks worse than wire reality.
-for `scripts/results/main_baseline/depth_16_run1_run1771628208_proof.json`:
+if you just ran step 2, use `./proof.json`.
+the numbers below are from a committed baseline artifact for reproducibility:
+`scripts/results/main_baseline/depth_16_run1_run1771628208_proof.json`
 
 - pretty: `14376734` bytes
 - minified: `3550433` bytes
@@ -68,6 +70,10 @@ for `scripts/results/main_baseline/depth_16_run1_run1771628208_proof.json`:
 check it yourself:
 
 ```bash
+# from step 2 output:
+# python3 scripts/proof_size.py ./proof.json
+#
+# reproducible committed artifact:
 python3 scripts/proof_size.py scripts/results/main_baseline/depth_16_run1_run1771628208_proof.json
 ```
 
@@ -121,24 +127,34 @@ scarb --release prove --execute --no-build \
   --executable-name zk_api_credits_v2_kernel \
   --arguments-file scripts/bench_inputs/v2_kernel/depth_8.json
 
-scarb --release verify --proof-file <proof-file>
+# scarb prints: "Saving proof to: <proof-file>"
+# (usually under target/execute/.../proof/proof.json)
+scarb --release verify --proof-file <proof-file-from-line-above>
 ```
 
 ## benchmark commands
 
 baseline depths:
+# defaults if unset:
+# BENCH_DEPTHS="8 16 20 32", BENCH_ITERATIONS=5
+# output dir default: scripts/results/main_baseline/
 
 ```bash
 BENCH_DEPTHS="8 16 20 32" BENCH_ITERATIONS=10 ./scripts/bench/run_depths.sh
 ```
 
 v1 vs v2-kernel:
+# defaults if unset:
+# BENCH_DEPTHS="8 16 20 32", BENCH_ITERATIONS=5, SCARB_PROFILE=release
+# output dir pattern: scripts/results/v1_v2_delta_<unix_timestamp>/
 
 ```bash
 BENCH_ITERATIONS=10 ./scripts/bench/run_v1_v2_delta.sh
 ```
 
 combined report (with guardrail):
+# replace <ts> with the unix timestamp suffix from your delta run dir
+# ex: scripts/results/v1_v2_delta_1771699999/ -> <ts> is 1771699999
 
 ```bash
 python3 scripts/bench/combine_tables.py \
