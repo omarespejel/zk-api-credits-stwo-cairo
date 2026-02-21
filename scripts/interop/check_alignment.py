@@ -224,14 +224,14 @@ def run_vivian_main(vivian_repo: Path, scarb_vivian: str, vector: dict, root: in
     # 10 sibling slots + 10 path-index slots (zero-padded in this shared vector) +
     # [expected_root, x, scope]
     args = [
-        int(vector["identity_secret"]),
-        int(vector["user_message_limit"]),
-        int(vector["ticket_index"]),
+        vector["identity_secret"],
+        vector["user_message_limit"],
+        vector["ticket_index"],
         VIVIAN_RESERVED_LEAF_IDX,
     ]
     args.extend([0] * MERKLE_PROOF_SLOT_COUNT)
     args.extend([0] * MERKLE_PROOF_SLOT_COUNT)
-    args.extend([root, int(vector["x"]), int(vector["scope"])])
+    args.extend([root, vector["x"], vector["scope"]])
 
     output = run(
         [
@@ -295,8 +295,8 @@ def main() -> int:
         run([args.scarb_our, "--release", "build"], cwd=our_repo)
         run([args.scarb_vivian, "--release", "build"], cwd=vivian_repo)
 
-    secret = int(vector["identity_secret"])
-    limit = int(vector["user_message_limit"])
+    secret = vector["identity_secret"]
+    limit = vector["user_message_limit"]
 
     root = derive_root(our_repo, args.scarb_our, secret, limit)
     our_out = run_our_main(our_repo, args.scarb_our, vector, root)
