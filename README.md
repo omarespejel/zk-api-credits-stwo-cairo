@@ -143,37 +143,33 @@ python3 scripts/v2_sequential_demo.py --depth 8 --steps 3
 ## benchmark commands
 
 baseline depths:
+```bash
 # defaults if unset:
 # BENCH_DEPTHS="8 16 20 32", BENCH_ITERATIONS=5
 # output dir default: scripts/results/main_baseline/
-
-```bash
 BENCH_DEPTHS="8 16 20 32" BENCH_ITERATIONS=10 ./scripts/bench/run_depths.sh
 ```
 
 v1 vs v2-kernel:
+```bash
 # defaults if unset:
 # BENCH_DEPTHS="8 16 20 32", BENCH_ITERATIONS=5, SCARB_PROFILE=release
 # output dir pattern: scripts/results/v1_v2_delta_<unix_timestamp>/
-
-```bash
 BENCH_ITERATIONS=10 ./scripts/bench/run_v1_v2_delta.sh
 ```
 
 v2-kernel depths only:
+```bash
 # defaults if unset:
 # BENCH_DEPTHS="8 16 20 32", BENCH_ITERATIONS=5, SCARB_PROFILE=release
 # output dir pattern: scripts/results/v2_kernel_only_<unix_timestamp>/
-
-```bash
 BENCH_ITERATIONS=10 ./scripts/bench/run_v2_kernel_depths.sh
 ```
 
 combined report (with guardrail):
+```bash
 # replace <ts> with the unix timestamp suffix from your delta run dir
 # ex: scripts/results/v1_v2_delta_1771699999/ -> <ts> is 1771699999
-
-```bash
 python3 scripts/bench/combine_tables.py \
   --main-summary scripts/results/main_baseline/bench_summary.csv \
   --delta-summary scripts/results/v1_v2_delta_<ts>/summary.csv \

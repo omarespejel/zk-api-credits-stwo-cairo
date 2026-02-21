@@ -4,8 +4,11 @@ from pathlib import Path
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "v2_sequential_demo.py"
 SPEC = spec_from_file_location("v2_sequential_demo", MODULE_PATH)
+if SPEC is None:
+    raise ImportError("Failed to load v2_sequential_demo module spec")
+if SPEC.loader is None:
+    raise ImportError("Failed to load v2_sequential_demo module loader")
 MODULE = module_from_spec(SPEC)
-assert SPEC is not None and SPEC.loader is not None
 SPEC.loader.exec_module(MODULE)
 
 build_v2_args = MODULE.build_v2_args

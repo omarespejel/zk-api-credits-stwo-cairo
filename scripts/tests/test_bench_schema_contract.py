@@ -8,16 +8,30 @@ from pathlib import Path
 
 SCHEMA_MODULE_PATH = Path(__file__).resolve().parents[1] / "bench" / "schema_contract.py"
 SCHEMA_SPEC = spec_from_file_location("schema_contract", SCHEMA_MODULE_PATH)
+if SCHEMA_SPEC is None:
+    raise ImportError("Failed to load schema_contract module spec")
+if SCHEMA_SPEC.loader is None:
+    raise ImportError("Failed to load schema_contract module loader")
 SCHEMA_MODULE = module_from_spec(SCHEMA_SPEC)
-assert SCHEMA_SPEC is not None and SCHEMA_SPEC.loader is not None
 SCHEMA_SPEC.loader.exec_module(SCHEMA_MODULE)
-sys.modules["schema_contract"] = SCHEMA_MODULE
 
 DELTA_MODULE_PATH = Path(__file__).resolve().parents[1] / "bench" / "build_v1_v2_delta.py"
 DELTA_SPEC = spec_from_file_location("build_v1_v2_delta", DELTA_MODULE_PATH)
+if DELTA_SPEC is None:
+    raise ImportError("Failed to load build_v1_v2_delta module spec")
+if DELTA_SPEC.loader is None:
+    raise ImportError("Failed to load build_v1_v2_delta module loader")
 DELTA_MODULE = module_from_spec(DELTA_SPEC)
-assert DELTA_SPEC is not None and DELTA_SPEC.loader is not None
-DELTA_SPEC.loader.exec_module(DELTA_MODULE)
+
+previous_schema_module = sys.modules.get("schema_contract")
+sys.modules["schema_contract"] = SCHEMA_MODULE
+try:
+    DELTA_SPEC.loader.exec_module(DELTA_MODULE)
+finally:
+    if previous_schema_module is None:
+        sys.modules.pop("schema_contract", None)
+    else:
+        sys.modules["schema_contract"] = previous_schema_module
 
 read_p50 = SCHEMA_MODULE.read_p50
 validate_summary_headers = SCHEMA_MODULE.validate_summary_headers
@@ -145,6 +159,66 @@ class BenchSchemaContractTests(unittest.TestCase):
             self.assertEqual(rows[0]["depth"], "8")
             self.assertEqual(rows[0]["v1_prove_p50_ms"], "100")
             self.assertEqual(rows[0]["v2_prove_p50_ms"], "150")
+
+    def test_build_delta_cli_zero_baseline_emits_nan_delta(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            baseline = tmp_path / "baseline.csv"
+            v2 = tmp_path / "v2.csv"
+            out = tmp_path / "delta.csv"
+
+            write_csv(
+                baseline,
+                [
+                    "run_tag",
+                    "prover_engine",
+                    "profile",
+                    "target",
+                    "machine",
+                    "depth",
+                    "samples",
+                    "prove_wall_ms_p50",
+                    "verify_wall_ms_p50",
+                    "proof_size_bytes_p50",
+                ],
+                [["run1", "cairo-prove", "release", "zk_api_credits", "m", "8", "1", "0", "10", "200"]],
+            )
+            write_csv(
+                v2,
+                [
+                    "run_tag",
+                    "prover_engine",
+                    "profile",
+                    "target",
+                    "machine",
+                    "depth",
+                    "samples",
+                    "prove_p50_ms",
+                    "verify_p50_ms",
+                    "size_p50_bytes",
+                ],
+                [["run2", "scarb-prove", "release", "zk_api_credits_v2_kernel", "m", "8", "1", "150", "15", "220"]],
+            )
+
+            argv_backup = list(sys.argv)
+            try:
+                sys.argv = [
+                    "build_v1_v2_delta.py",
+                    "--baseline-summary",
+                    str(baseline),
+                    "--v2-summary",
+                    str(v2),
+                    "--out",
+                    str(out),
+                ]
+                rc = DELTA_MODULE.main()
+            finally:
+                sys.argv = argv_backup
+
+            self.assertEqual(rc, 0)
+            with out.open() as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(rows[0]["prove_delta_pct"].lower(), "nan")
 
 
 if __name__ == "__main__":

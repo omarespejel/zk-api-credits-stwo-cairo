@@ -29,6 +29,13 @@ else
   SCARB_GLOBAL_ARGS=()
 fi
 
+ms_now() {
+  python3 - <<'PY'
+import time
+print(int(time.time() * 1000))
+PY
+}
+
 echo "building once (${SCARB_PROFILE} profile) ..."
 scarb ${SCARB_GLOBAL_ARGS[@]+"${SCARB_GLOBAL_ARGS[@]}"} build >/dev/null
 
@@ -50,19 +57,11 @@ for depth in ${BENCH_DEPTHS}; do
 
   for iteration in $(seq 1 "${BENCH_ITERATIONS}"); do
     prove_log="$(mktemp "${RESULTS_DIR}/.v2_d${depth}_i${iteration}_prove_XXXX.log")"
-    start_ms=$(python3 - <<'PY'
-import time
-print(int(time.time() * 1000))
-PY
-)
+    start_ms=$(ms_now)
     scarb ${SCARB_GLOBAL_ARGS[@]+"${SCARB_GLOBAL_ARGS[@]}"} prove --execute --no-build \
       --executable-name "${TARGET_NAME}" \
       --arguments-file "${args_file}" >"${prove_log}" 2>&1
-    end_ms=$(python3 - <<'PY'
-import time
-print(int(time.time() * 1000))
-PY
-)
+    end_ms=$(ms_now)
     prove_wall_ms=$((end_ms - start_ms))
 
     proof_path=$(python3 - "${prove_log}" <<'PY'
@@ -77,17 +76,9 @@ PY
 )
     rm -f "${prove_log}"
 
-    verify_start_ms=$(python3 - <<'PY'
-import time
-print(int(time.time() * 1000))
-PY
-)
+    verify_start_ms=$(ms_now)
     scarb ${SCARB_GLOBAL_ARGS[@]+"${SCARB_GLOBAL_ARGS[@]}"} verify --proof-file "${proof_path}" >/dev/null 2>&1
-    verify_end_ms=$(python3 - <<'PY'
-import time
-print(int(time.time() * 1000))
-PY
-)
+    verify_end_ms=$(ms_now)
     verify_wall_ms=$((verify_end_ms - verify_start_ms))
     proof_size_bytes=$(wc -c < "${proof_path}" | tr -d ' ')
 
