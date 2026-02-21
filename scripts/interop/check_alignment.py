@@ -21,6 +21,8 @@ REQUIRED_INT_KEYS = (
 )
 
 RUN_TIMEOUT_SEC = 300
+EMPTY_MERKLE_PROOF_LEN = 0
+VIVIAN_RESERVED_LEAF_IDX = 0
 
 
 def parse_strict_int(key: str, value: object, vector_path: Path) -> int:
@@ -66,7 +68,7 @@ def parse_program_output(text: str) -> list[int]:
     lines = text.splitlines()
     values: list[int] = []
     in_output = False
-    for line in lines:
+    for line_no, line in enumerate(lines, start=1):
         stripped = line.strip()
         if stripped == "Program output:":
             in_output = True
@@ -77,7 +79,12 @@ def parse_program_output(text: str) -> list[int]:
             continue
         if stripped.startswith("Saving output to:"):
             break
-        values.append(int(stripped))
+        try:
+            values.append(int(stripped))
+        except ValueError as exc:
+            raise ValueError(
+                f"non-integer program output line at {line_no}: {stripped!r}"
+            ) from exc
     if not values:
         raise ValueError(f"could not parse program output from:\n{text}")
     return values
@@ -146,6 +153,13 @@ def load_vector(vector_path: Path) -> dict[str, int | str]:
     return validate_vector(vector_raw, vector_path)
 
 
+def ensure_repo_dir(path: Path, label: str) -> None:
+    if not path.exists():
+        raise FileNotFoundError(f"{label} repo path not found: {path}")
+    if not path.is_dir():
+        raise NotADirectoryError(f"{label} repo path is not a directory: {path}")
+
+
 def derive_root(our_repo: Path, scarb_our: str, secret: int, limit: int) -> int:
     output = run(
         [
@@ -155,7 +169,7 @@ def derive_root(our_repo: Path, scarb_our: str, secret: int, limit: int) -> int:
             "--executable-name",
             "derive_rate_commitment_root",
             "--arguments",
-            to_args([secret, limit, 0]),
+            to_args([secret, limit, EMPTY_MERKLE_PROOF_LEN]),
             "--print-program-output",
         ],
         cwd=our_repo,
@@ -178,7 +192,7 @@ def run_our_main(our_repo: Path, scarb_our: str, vector: dict, root: int) -> dic
         int(vector["class_price_low"]),
         int(vector["class_price_high"]),
         root,
-        0,
+        EMPTY_MERKLE_PROOF_LEN,
     ]
     output = run(
         [
@@ -212,7 +226,7 @@ def run_vivian_main(vivian_repo: Path, scarb_vivian: str, vector: dict, root: in
         int(vector["identity_secret"]),
         int(vector["user_message_limit"]),
         int(vector["ticket_index"]),
-        0,
+        VIVIAN_RESERVED_LEAF_IDX,
     ]
     args.extend([0] * 10)
     args.extend([0] * 10)
@@ -265,6 +279,8 @@ def main() -> int:
     args = parse_args()
     our_repo = Path(args.our_repo).resolve()
     vivian_repo = Path(args.vivian_repo).resolve()
+    ensure_repo_dir(our_repo, "our")
+    ensure_repo_dir(vivian_repo, "vivian")
     vector_path = (our_repo / args.vector).resolve() if not Path(args.vector).is_absolute() else Path(args.vector)
 
     if not vector_path.exists():

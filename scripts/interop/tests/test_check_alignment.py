@@ -7,9 +7,9 @@ from unittest.mock import patch
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "check_alignment.py"
 SPEC = spec_from_file_location("check_alignment", MODULE_PATH)
-MODULE = module_from_spec(SPEC)
 if SPEC is None or SPEC.loader is None:
     raise ImportError("Failed to load check_alignment module spec")
+MODULE = module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
 check_alignment = MODULE.check_alignment
@@ -19,6 +19,7 @@ run_vivian_main = MODULE.run_vivian_main
 to_args = MODULE.to_args
 validate_vector = MODULE.validate_vector
 load_vector = MODULE.load_vector
+ensure_repo_dir = MODULE.ensure_repo_dir
 
 
 class InteropHelperTests(unittest.TestCase):
@@ -36,6 +37,16 @@ Saving output to: target/execute/foo
     def test_parse_program_output_raises_on_missing_block(self):
         with self.assertRaises(ValueError):
             parse_program_output("no output here")
+
+    def test_parse_program_output_non_integer_line_raises_context(self):
+        text = """
+Program output:
+123
+not_a_number
+Saving output to: target/execute/foo
+"""
+        with self.assertRaisesRegex(ValueError, "non-integer program output line"):
+            parse_program_output(text)
 
     def test_to_args(self):
         self.assertEqual(to_args([42, 0, -5]), "42,0,-5")
@@ -172,6 +183,27 @@ Saving output to: target/execute/foo
         ):
             with self.assertRaisesRegex(RuntimeError, "command timed out"):
                 run(["scarb", "build"], Path("."))
+
+    def test_run_nonzero_returncode_raises_runtime_error(self):
+        mock_result = subprocess.CompletedProcess(
+            args=["scarb", "build"], returncode=1, stdout="build failed"
+        )
+        with patch.object(MODULE.subprocess, "run", return_value=mock_result):
+            with self.assertRaisesRegex(RuntimeError, "command failed"):
+                run(["scarb", "build"], Path("."))
+
+    def test_ensure_repo_dir_missing_path_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            missing = Path(tmp) / "missing_repo"
+            with self.assertRaisesRegex(FileNotFoundError, "repo path not found"):
+                ensure_repo_dir(missing, "vivian")
+
+    def test_ensure_repo_dir_non_directory_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            file_path = Path(tmp) / "not_dir.txt"
+            file_path.write_text("x")
+            with self.assertRaisesRegex(NotADirectoryError, "is not a directory"):
+                ensure_repo_dir(file_path, "vivian")
 
 
 if __name__ == "__main__":
