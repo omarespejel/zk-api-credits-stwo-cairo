@@ -126,6 +126,28 @@ scarb build
 /path/to/cairo-prove verify ./proof.json
 ```
 
+## Cross-repo interop check
+
+There is now a shared-vector alignment check against Vivian's Cairo RLN repo.
+It verifies both implementations produce identical `nullifier` and `y` for the same input vector.
+
+Default vector:
+- `scripts/interop/vectors/shared_vector_01.json`
+
+Run it:
+
+```bash
+python3 scripts/interop/check_alignment.py \
+  --our-repo . \
+  --vivian-repo ../cairo-circuits \
+  --scarb-our scarb \
+  --scarb-vivian ~/.asdf/installs/scarb/2.17.0-rc.1/bin/scarb
+```
+
+Notes:
+- This check computes a shared root first using `derive_rate_commitment_root`.
+- It then executes both repos with aligned inputs and enforces output equality on `nullifier` and `y`.
+
 ## Preflight and CI gate
 
 Run preflight before pushing:
