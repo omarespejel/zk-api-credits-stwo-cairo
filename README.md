@@ -1,152 +1,209 @@
-# zk_api_credits
+# zk-api-credits-stwo-cairo
 
-A small, self‑contained proof‑of‑concept to answer one question from Davide’s “ZK API Usage Credits: LLMs and Beyond” post:
+Fixed-class RLN-style API credits PoC in Cairo, with STARK proving, benchmark harnesses, and protocol-flow demos.
 
-> Is the fixed‑class RLN-style design actually practical today on a real prover, or is it just a nice diagram?
+This repo exists to answer a practical question from the Ethereum discussion around "ZK API Usage Credits":
 
-I implemented one concrete instance and measured it end‑to‑end.
+> Is the fixed-class RLN path implementable and measurable now, or only a design sketch?
+
+## Current status
+
+- Fixed-class core path is implemented and tested.
+- End-to-end prove/verify works for `zk_api_credits` on raw `cairo-prove`.
+- A minimal `v2_kernel` executable exists for overhead exploration (signature + commitment-update path), measured via `scarb prove/verify`.
+- CI and local preflight are matrix-driven so unsupported paths are explicit.
 
 ## TL;DR
 
-- Circuit implements:
-  - Poseidon Merkle membership for RLN `rate_commitment = Poseidon(identity_commitment, user_message_limit)`.
-  - RLN share `y = k + a * x` with `a = Poseidon(identity_secret, scope, ticket_index)`.
-  - Nullifier `Poseidon(a)` for rate limiting.
-  - Ticket bound check `ticket_index < user_message_limit`.
-  - Solvency floor `(ticket_index + 1) * class_price <= deposit` (fixed‑class cost).
-- Benchmarked on an Apple M3 Pro (10 runs per depth: 8, 16, 20, 32):
-  - **Prove p50:** ≈ 8.6–13.2s depending on depth.
-  - **Verify p50:** ≈ 64–66ms for all depths.
-  - **Proof size:** ≈ 14.0–14.5 MB.
-- Interpretation:
-  - Verification is cheap and essentially depth‑independent.
-  - Proving time is dominated by prover overhead, not circuit size, but is compatible with **pre‑generating proofs** for human‑paced LLM/API usage.
+Circuit constraints implemented:
+- Merkle membership over RLN `rate_commitment = Poseidon(Poseidon(identity_secret), user_message_limit)`.
+- RLN share `y = identity_secret + a1 * x` with `a1 = Poseidon(identity_secret, scope, ticket_index)`.
+- Nullifier `Poseidon(a1)`.
+- Ticket bound `ticket_index < user_message_limit`.
+- Fixed-class solvency floor `(ticket_index + 1) * class_price <= deposit`.
 
-For this experiment I used Cairo plus a STARK prover I know well, but the circuit structure is generic. Nothing in this repo assumes a specific chain or proving stack beyond “there is a zkVM and a STARK prover”; it’s meant as one concrete data point, not an argument for one stack over another.
+Headline baseline snapshot (historical 10-run result used in the working-group discussion, Apple M3 Pro):
 
-## Why this repo exists
-
-Davide’s write‑up explores a full ZK API credits protocol: Merkle‑gated identities, RLN‑style rate limiting, solvency, refunds, and slashing. The part I focused on here is the **fixed‑class branch** he mentions as a special case: every call costs the same, no refunds, just “do I still have credits left or not?”.
-
-My goals were:
-
-- Check that the fixed‑class variant can be implemented cleanly as a circuit.
-- Get real prove/verify numbers on a modern STARK prover.
-- See whether those numbers line up with the kind of LLM/API usage patterns in the post (e.g. pre‑generating proofs while the user reads responses).
-
-This repo:
-
-- Implements the fixed‑class circuit (membership, RLN share, nullifier, solvency floor).
-- Wires it into a prover with a reproducible benchmarking harness.
-- Adds small “spec demos” (slashing recovery and a tiny API server) to exercise both the honest path and the slashing path.
-
-It is **not** a protocol proposal and **not** meant for production use. It’s an implementation artifact to test whether one branch of Davide’s design behaves well in practice.
-
-## Support matrix contract
-
-Runtime compatibility is tracked in `compat_matrix.json` and treated as a contract:
-
-- `zk_api_credits` -> `cairo-prove` : supported
-- `zk_api_credits_v2_kernel` -> `scarb prove/verify` : supported
-- `zk_api_credits_v2_kernel` -> raw `cairo-prove` : unsupported (expected failure today)
-
-`compat_matrix_ci.json` is the CI-safe subset (scarb-prove only), used in GitHub Actions.
-The full matrix (with negative cairo-prove checks) is still what we run locally before publishing numbers.
-
-## How it relates to Davide’s post
-
-Very roughly, his post has two layers:
-
-- A **core RLN layer**: identities in a Merkle tree, RLN shares, nullifiers, solvency, and slashing.
-- A **refund / E(R) layer**: handling variable‑cost calls with signed refunds or a homomorphic commitment to total refunds.
-
-This repo only targets the first layer, and within that, the fixed‑class case:
-
-- Poseidon membership in a Merkle tree (RLN `rate_commitment` leaf).
-- RLN share construction `y = k + a * x` with `a = Poseidon(identity_secret, scope, ticket_index)`.
-- Nullifier `Poseidon(a)` for rate limiting.
-- Ticket bound check `ticket_index < user_message_limit`.
-- Solvency floor `(ticket_index + 1) * class_price <= deposit`.
-
-The refund / E(R) layer (in‑circuit signature verification, homomorphic updates to commitments) is deliberately left out. In Davide’s terms, you can think of this as answering:
-
-> “If we temporarily set R = 0 and keep C_max constant, does the rest of the mechanism behave well on a real prover?”
-
-The answer from this repo is: **for human‑paced LLM/API usage, yes.** Verification is ~65ms, proof sizes are ~14MB, and proving can be pushed into pre‑generation between user requests.
-
-Small update: there is now a separate `v2_kernel` executable used only for overhead benchmarking. It is intentionally minimal (adds a signature-check path and commitment update path) and is **not** a full implementation of the refund protocol flow.
-At the moment, this `v2_kernel` path is measured with `scarb prove/verify` (simulation route for unsupported builtins). Running the same executable directly via `cairo-prove` currently fails in this environment.
-
-## Snapshot benchmark results
-
-Historical clean snapshot from the earlier fixed-class baseline run:
-Latest clean run (2026-02-14T23:38:01Z UTC, 10 iterations, Apple M3 Pro):
-
-| depth | prove p50 (ms) | verify p50 (ms) | proof size (bytes) |
+| Depth | Prove p50 (ms) | Verify p50 (ms) | Proof size (bytes) |
 |---|---:|---:|---:|
 | 8  | 12734 | 66 | 14048899 |
 | 16 |  8589 | 66 | 14349849 |
 | 20 | 10400 | 64 | 14436847 |
 | 32 | 13169 | 64 | 14472551 |
 
-More detailed stats (min/p95/max, relation counts, etc.) are in `scripts/results/main_baseline/bench_report.md` and `scripts/results/main_baseline/bench_summary.csv`.
+Committed reproducible smoke baseline in this repo (`scripts/results/main_baseline/bench_summary.csv`, run_tag `run1771628208`, iterations=1):
 
-Tiny note on "proof size": the files in `scripts/results/*_proof.json` are pretty-printed JSON, so they look huge.
-If you just want a quick "ok how big is this really" number, gzip is a decent proxy:
-Replace `<run_tag>` with the actual run tag emitted by your benchmark script.
+| Depth | Prove (ms) | Verify (ms) | Proof size (bytes) |
+|---|---:|---:|---:|
+| 8  | 9106 | 47 | 13928872 |
+| 16 | 8258 | 48 | 14376734 |
+| 20 | 8515 | 50 | 14285650 |
+| 32 | 6407 | 46 | 14282230 |
+
+Interpretation:
+- Verification is cheap and mostly depth-insensitive.
+- Proving is the dominant cost and can be amortized with pre-generation for human-paced interactions.
+
+## Protocol scope in this repo
+
+What is included:
+- Fixed-class RLN statement and constraints (`src/lib.cairo` -> `main`).
+- Merkle proof utilities for rate commitment membership.
+- Slashing math demo (`scripts/slash.py`).
+- Parallel pre-generation demo (`scripts/precompute_parallel.sh`).
+- Minimal API flow demo (`scripts/mini_api_server.py`).
+- Benchmark harnesses with run metadata and guardrails.
+
+What is intentionally out of scope:
+- Production contract deployment and settlement infrastructure.
+- Full variable-cost refund protocol.
+- Pairing-based primitives (BBS+ path).
+
+## Repo map
+
+Core files:
+- `src/lib.cairo`: fixed-class circuit + `v2_kernel` + tests.
+- `Scarb.toml`: executable targets (`zk_api_credits`, `zk_api_credits_v2_kernel`, `derive_rate_commitment_root`).
+- `compat_matrix.json`: full local support contract.
+- `compat_matrix_ci.json`: CI-safe scarb-only subset.
+
+Ops and benchmarking:
+- `scripts/ci/preflight.py`: matrix-driven smoke/negative checks.
+- `scripts/bench/run_depths.sh`: baseline depth benchmarking.
+- `scripts/bench/run_v1_v2_delta.sh`: v1 vs v2-kernel comparison.
+- `scripts/bench/combine_tables.py`: mixed-family guardrail report generation.
+- `scripts/proof_size.py`: pretty/minified/gzip proof-size measurement.
+
+## Quickstart
+
+### 1) Requirements
+
+- Scarb `2.14.0` for this repo's pinned Cairo deps.
+- `cairo-prove` binary for raw-path runs.
+- macOS/Linux shell tooling.
+
+### 2) Build and test
 
 ```bash
-python3 scripts/proof_size.py scripts/results/main_baseline/depth_16_run1_<run_tag>_proof.json
+scarb test
+scarb --release build
 ```
 
-## Scope and non‑goals
-
-What this repo includes:
-
-- Fixed‑class circuit behavior.
-- Benchmark and reproducibility harness.
-- Protocol‑flow scripts for slashing/replay and pre‑generation.
-
-What this repo does not include:
-
-- Protocol deployment contracts.
-- Networking or chain‑side accounting.
-- Refund pathways or class‑transition logic.
-- Pairing primitives or BBS+ components.
-
-## Usage
+### 3) Prove/verify fixed-class path with raw `cairo-prove`
 
 ```bash
-cd zk-api-credits-stwo-cairo
-scarb build
+/path/to/cairo-prove prove \
+  target/release/zk_api_credits.executable.json \
+  ./proof.json \
+  --arguments-file scripts/bench_inputs/depth_8.json
 
-# one‑shot prove + verify with template arguments
-/path/to/cairo-prove prove target/release/zk_api_credits.executable.json ./proof.json \
-  --arguments-file scripts/bench_inputs/template_depth_args.json
 /path/to/cairo-prove verify ./proof.json
 ```
 
-## Preflight and CI gate
+### 4) Prove/verify v2-kernel path with scarb
 
-Run preflight before pushing:
+```bash
+scarb --release prove --execute --no-build \
+  --executable-name zk_api_credits_v2_kernel \
+  --arguments-file scripts/bench_inputs/v2_kernel/depth_8.json
+
+# use proof path printed by scarb prove
+scarb --release verify --proof-file <proof-file>
+```
+
+### 5) Measure proof artifact size correctly
+
+`cairo-prove` proof files are pretty-printed JSON by default.
+Use the helper to compare realistic sizes:
+
+```bash
+python3 scripts/proof_size.py scripts/results/main_baseline/depth_16_run1_run1771628208_proof.json
+```
+
+Current output for that artifact:
+- pretty JSON: `14376734` bytes
+- minified JSON: `3550433` bytes
+- gzip: `1517215` bytes
+
+## Benchmarking workflow
+
+Baseline depth sweep (`cairo-prove` path):
+
+```bash
+BENCH_DEPTHS="8 16 20 32" BENCH_ITERATIONS=10 ./scripts/bench/run_depths.sh
+```
+
+Artifacts land in `scripts/results/main_baseline`:
+- `bench_runs.csv`
+- `bench_summary.csv`
+- `bench_meta.json`
+- logs and proofs per depth/run
+
+Generate report:
+
+```bash
+python3 scripts/bench/generate_report.py \
+  --summary scripts/results/main_baseline/bench_summary.csv \
+  --relation-counts scripts/results/main_baseline/relation_counts.csv \
+  --out scripts/results/main_baseline/bench_report.md
+```
+
+v1 vs v2-kernel delta (`scarb prove/verify` path):
+
+```bash
+BENCH_ITERATIONS=10 ./scripts/bench/run_v1_v2_delta.sh
+```
+
+Outputs are timestamped under `scripts/results/v1_v2_delta_<ts>`.
+
+Combined table pack with guardrails:
+
+```bash
+python3 scripts/bench/combine_tables.py \
+  --main-summary scripts/results/main_baseline/bench_summary.csv \
+  --delta-summary scripts/results/v1_v2_delta_<ts>/summary.csv \
+  --delta-table scripts/results/v1_v2_delta_<ts>/v1_vs_v2_delta.csv \
+  --out scripts/results/combined_report.md
+```
+
+This command fails on engine/profile mismatch unless `--allow-mixed` is set.
+
+## Support matrix and preflight contract
+
+Matrix schema version is enforced by preflight (`MATRIX_SCHEMA_VERSION = 1`) to fail fast on drift.
+
+Run full local preflight (includes unsupported-path negative check):
 
 ```bash
 python3 scripts/ci/preflight.py
 ```
 
-CI runs the scarb-only matrix:
+Run CI-equivalent preflight (scarb-only subset):
 
 ```bash
 python3 scripts/ci/preflight.py --matrix compat_matrix_ci.json
 ```
 
-Preflight is matrix-driven and includes:
-- `scarb test`
-- `scarb --release build`
-- smoke prove/verify on supported paths
-- negative check on known unsupported path (`v2_kernel` via raw `cairo-prove`) only when using the full matrix (`compat_matrix.json`)
-- CI (`compat_matrix_ci.json`) intentionally skips the raw `cairo-prove` negative-path check and runs scarb-only smoke coverage
+Matrix meaning:
+- `main_cairo_prove`: supported (`zk_api_credits` via raw `cairo-prove`).
+- `v2_kernel_scarb_prove`: supported (`zk_api_credits_v2_kernel` via `scarb prove/verify`).
+- `v2_kernel_cairo_prove`: intentionally unsupported today; expected error substring is tracked in `compat_matrix.json`.
 
-The CI command is wired in `.github/workflows/preflight.yml` and should be required in branch protection.
+## Known caveats
 
-For external sharing, use `PUBLISH_CHECKLIST.md`.
+- CI intentionally uses `compat_matrix_ci.json` and does not run the raw `cairo-prove` negative-path test.
+- `zk_api_credits_v2_kernel` on raw `cairo-prove` is currently unsupported in this environment.
+- Proof size reporting is format-sensitive; always report pretty/minified/gzip (or binary format if/when added).
+
+## Publish checklist
+
+Use `PUBLISH_CHECKLIST.md` before sharing numbers externally.
+
+## Credits and references
+
+- Davide Crapis + EF dAI working group discussion that motivated this PoC.
+- RLN work in Circom/Noir and broader RLN community designs.
+- StarkWare/STWO + Cairo tooling used for implementation and measurement.
+
+Reference discussion:
+- https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104
