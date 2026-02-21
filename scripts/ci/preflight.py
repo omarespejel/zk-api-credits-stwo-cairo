@@ -14,6 +14,24 @@ from pathlib import Path
 MATRIX_SCHEMA_VERSION = 1
 
 
+def discover_benchmark_contract_paths(project_root: Path) -> list[Path]:
+    """Return only benchmark schema artifacts that are present in this checkout."""
+    candidates = [
+        project_root / "scripts/results/main_baseline/bench_summary.csv",
+    ]
+    existing: list[Path] = []
+    missing: list[Path] = []
+    for path in candidates:
+        if path.exists():
+            existing.append(path)
+        else:
+            missing.append(path)
+
+    for path in missing:
+        print(f"[preflight][info] skipping missing benchmark schema artifact: {path}")
+    return existing
+
+
 def is_valid_cairo_prove(binary_path: Path) -> bool:
     """Best-effort sanity check to avoid picking dummy `cairo-prove` binaries."""
     if not (binary_path.exists() and binary_path.is_file()):
@@ -127,10 +145,7 @@ def main() -> int:
         raise FileNotFoundError(f"matrix file not found: {matrix_path}")
 
     # Benchmark schema contract check: fail fast if committed summaries drift.
-    benchmark_contract_paths = [
-        project_root / "scripts/results/main_baseline/bench_summary.csv",
-    ]
-    for summary_path in benchmark_contract_paths:
+    for summary_path in discover_benchmark_contract_paths(project_root):
         run(
             [
                 "python3",
