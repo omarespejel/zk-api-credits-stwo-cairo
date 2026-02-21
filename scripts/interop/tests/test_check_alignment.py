@@ -1,4 +1,5 @@
 import subprocess
+import tempfile
 import unittest
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
@@ -14,8 +15,10 @@ SPEC.loader.exec_module(MODULE)
 check_alignment = MODULE.check_alignment
 parse_program_output = MODULE.parse_program_output
 run = MODULE.run
+run_vivian_main = MODULE.run_vivian_main
 to_args = MODULE.to_args
 validate_vector = MODULE.validate_vector
+load_vector = MODULE.load_vector
 
 
 class InteropHelperTests(unittest.TestCase):
@@ -89,7 +92,7 @@ Saving output to: target/execute/foo
             )
 
     def test_validate_vector_invalid_required_type(self):
-        with self.assertRaisesRegex(ValueError, "key 'user_message_limit' must be int-coercible"):
+        with self.assertRaisesRegex(ValueError, "key 'user_message_limit' must be an integer value"):
             validate_vector(
                 {
                     "identity_secret": 42,
@@ -104,6 +107,62 @@ Saving output to: target/execute/foo
                 },
                 Path("vec.json"),
             )
+
+    def test_validate_vector_rejects_float(self):
+        with self.assertRaisesRegex(ValueError, "must be an integer value, got float"):
+            validate_vector(
+                {
+                    "identity_secret": 42,
+                    "user_message_limit": 32.1,
+                    "ticket_index": 3,
+                    "x": 12345,
+                    "scope": 32,
+                    "deposit_low": 1000,
+                    "deposit_high": 0,
+                    "class_price_low": 100,
+                    "class_price_high": 0,
+                },
+                Path("vec.json"),
+            )
+
+    def test_validate_vector_rejects_bool(self):
+        with self.assertRaisesRegex(ValueError, "must be an integer value, got bool"):
+            validate_vector(
+                {
+                    "identity_secret": True,
+                    "user_message_limit": 32,
+                    "ticket_index": 3,
+                    "x": 12345,
+                    "scope": 32,
+                    "deposit_low": 1000,
+                    "deposit_high": 0,
+                    "class_price_low": 100,
+                    "class_price_high": 0,
+                },
+                Path("vec.json"),
+            )
+
+    def test_load_vector_reports_json_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "bad.json"
+            path.write_text("{ bad json")
+            with self.assertRaisesRegex(ValueError, r"invalid json in vector file .*bad\.json"):
+                load_vector(path)
+
+    def test_run_vivian_main_uses_release_profile(self):
+        vector = {
+            "identity_secret": 42,
+            "user_message_limit": 32,
+            "ticket_index": 3,
+            "x": 12345,
+            "scope": 77,
+        }
+        fake_output = "Program output:\n1\n2\n3\n4\n5\nSaving output to: target/execute/foo\n"
+        with patch.object(MODULE, "run", return_value=fake_output) as run_mock:
+            out = run_vivian_main(Path("."), "scarb", vector, 999)
+            cmd = run_mock.call_args.args[0]
+            self.assertEqual(cmd[:3], ["scarb", "--release", "execute"])
+            self.assertEqual(out["nullifier"], 5)
 
     def test_run_timeout_raises_runtime_error(self):
         with patch.object(
