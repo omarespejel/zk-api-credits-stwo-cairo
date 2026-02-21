@@ -43,6 +43,8 @@ class V2SequentialDemoTests(unittest.TestCase):
         ]
         prefix, remask = extract_prefix_and_remask(base)
         self.assertEqual(len(prefix), 13)
+        expected_prefix = [int(value, 16) for value in base[:13]]
+        self.assertEqual(prefix, expected_prefix)
         self.assertEqual(remask, 9)
 
     def test_build_v2_args_rewrites_ticket_scope_and_tail(self):
