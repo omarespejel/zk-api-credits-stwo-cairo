@@ -142,6 +142,9 @@ def run_our_main(our_repo: Path, scarb_our: str, vector: dict, root: int) -> dic
 
 
 def run_vivian_main(vivian_repo: Path, scarb_vivian: str, vector: dict, root: int) -> dict[str, int]:
+    # cairo_circuits CLI args: [secret, limit, ticket, reserved0] +
+    # 10 sibling slots + 10 path-index slots (zero-padded in this shared vector) +
+    # [expected_root, x, scope]
     args = [
         int(vector["identity_secret"]),
         int(vector["user_message_limit"]),
@@ -232,6 +235,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"interop check failed: {exc}", file=sys.stderr)
         raise
