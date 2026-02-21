@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -20,6 +21,24 @@ REQUIRED_INT_KEYS = (
 )
 
 RUN_TIMEOUT_SEC = 300
+
+
+def parse_strict_int(key: str, value: object, vector_path: Path) -> int:
+    if isinstance(value, bool):
+        raise ValueError(
+            f"vector key '{key}' must be an integer value, got bool {value!r} in {vector_path}"
+        )
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        raise ValueError(
+            f"vector key '{key}' must be an integer value, got float {value!r} in {vector_path}"
+        )
+    if isinstance(value, str) and re.fullmatch(r"[+-]?\d+", value.strip()):
+        return int(value)
+    raise ValueError(
+        f"vector key '{key}' must be an integer value, got {value!r} in {vector_path}"
+    )
 
 
 def run(cmd: list[str], cwd: Path) -> str:
@@ -76,13 +95,7 @@ def validate_vector(vector_raw: object, vector_path: Path) -> dict[str, int | st
     for key in REQUIRED_INT_KEYS:
         if key not in vector_raw:
             raise ValueError(f"vector missing required key '{key}' in {vector_path}")
-        value = vector_raw[key]
-        try:
-            vector[key] = int(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(
-                f"vector key '{key}' must be int-coercible, got {value!r} in {vector_path}"
-            ) from exc
+        vector[key] = parse_strict_int(key, vector_raw[key], vector_path)
 
     if "name" in vector_raw:
         vector["name"] = str(vector_raw["name"])
@@ -123,6 +136,14 @@ def parse_args() -> argparse.Namespace:
         help="Skip build step and run only execute checks.",
     )
     return parser.parse_args()
+
+
+def load_vector(vector_path: Path) -> dict[str, int | str]:
+    try:
+        vector_raw = json.loads(vector_path.read_text())
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid json in vector file {vector_path}: {exc}") from exc
+    return validate_vector(vector_raw, vector_path)
 
 
 def derive_root(our_repo: Path, scarb_our: str, secret: int, limit: int) -> int:
@@ -200,6 +221,7 @@ def run_vivian_main(vivian_repo: Path, scarb_vivian: str, vector: dict, root: in
     output = run(
         [
             scarb_vivian,
+            "--release",
             "execute",
             "-p",
             "cairo_circuits",
@@ -248,12 +270,11 @@ def main() -> int:
     if not vector_path.exists():
         raise FileNotFoundError(f"vector file not found: {vector_path}")
 
-    vector_raw = json.loads(vector_path.read_text())
-    vector = validate_vector(vector_raw, vector_path)
+    vector = load_vector(vector_path)
 
     if not args.skip_build:
         run([args.scarb_our, "--release", "build"], cwd=our_repo)
-        run([args.scarb_vivian, "build"], cwd=vivian_repo)
+        run([args.scarb_vivian, "--release", "build"], cwd=vivian_repo)
 
     secret = int(vector["identity_secret"])
     limit = int(vector["user_message_limit"])
