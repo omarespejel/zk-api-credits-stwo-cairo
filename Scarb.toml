@@ -15,6 +15,10 @@ function = "zk_api_credits::v2_kernel"
 name = "derive_rate_commitment_root"
 function = "zk_api_credits::derive_rate_commitment_root"
 
+[[target.executable]]
+name = "derive_refund_transition"
+function = "zk_api_credits::derive_refund_transition"
+
 [cairo]
 enable-gas = false
 

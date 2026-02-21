@@ -84,7 +84,9 @@ python3 scripts/proof_size.py scripts/results/main_baseline/depth_16_run1_run177
 - `scripts/ci/preflight.py`: matrix smoke/negative checks
 - `scripts/bench/run_depths.sh`: baseline benchmark
 - `scripts/bench/run_v1_v2_delta.sh`: v1 vs v2-kernel delta
+- `scripts/bench/run_v2_kernel_depths.sh`: v2-kernel-only depth benchmark
 - `scripts/bench/combine_tables.py`: guardrails for mixed benchmark families
+- `scripts/v2_sequential_demo.py`: sequential state demo for v2-kernel
 - `scripts/proof_size.py`: proof size formats
 
 ## support matrix (contract)
@@ -132,31 +134,42 @@ scarb --release prove --execute --no-build \
 scarb --release verify --proof-file <proof-file-from-line-above>
 ```
 
+### 4) v2 sequential state demo (no parallel branches)
+
+```bash
+python3 scripts/v2_sequential_demo.py --depth 8 --steps 3
+```
+
 ## benchmark commands
 
 baseline depths:
+```bash
 # defaults if unset:
 # BENCH_DEPTHS="8 16 20 32", BENCH_ITERATIONS=5
 # output dir default: scripts/results/main_baseline/
-
-```bash
 BENCH_DEPTHS="8 16 20 32" BENCH_ITERATIONS=10 ./scripts/bench/run_depths.sh
 ```
 
 v1 vs v2-kernel:
+```bash
 # defaults if unset:
 # BENCH_DEPTHS="8 16 20 32", BENCH_ITERATIONS=5, SCARB_PROFILE=release
 # output dir pattern: scripts/results/v1_v2_delta_<unix_timestamp>/
-
-```bash
 BENCH_ITERATIONS=10 ./scripts/bench/run_v1_v2_delta.sh
 ```
 
+v2-kernel depths only:
+```bash
+# defaults if unset:
+# BENCH_DEPTHS="8 16 20 32", BENCH_ITERATIONS=5, SCARB_PROFILE=release
+# output dir pattern: scripts/results/v2_kernel_only_<unix_timestamp>/
+BENCH_ITERATIONS=10 ./scripts/bench/run_v2_kernel_depths.sh
+```
+
 combined report (with guardrail):
+```bash
 # replace <ts> with the unix timestamp suffix from your delta run dir
 # ex: scripts/results/v1_v2_delta_1771699999/ -> <ts> is 1771699999
-
-```bash
 python3 scripts/bench/combine_tables.py \
   --main-summary scripts/results/main_baseline/bench_summary.csv \
   --delta-summary scripts/results/v1_v2_delta_<ts>/summary.csv \
