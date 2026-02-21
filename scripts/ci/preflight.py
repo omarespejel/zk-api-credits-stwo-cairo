@@ -126,6 +126,24 @@ def main() -> int:
     if not matrix_path.exists():
         raise FileNotFoundError(f"matrix file not found: {matrix_path}")
 
+    # Benchmark schema contract check: fail fast if committed summaries drift.
+    benchmark_contract_paths = [
+        project_root / "scripts/results/main_baseline/bench_summary.csv",
+    ]
+    for summary_path in benchmark_contract_paths:
+        run(
+            [
+                "python3",
+                "scripts/bench/validate_summary_schema.py",
+                "--summary",
+                str(summary_path),
+                "--label",
+                summary_path.name,
+            ],
+            cwd=project_root,
+            expect_success=True,
+        )
+
     matrix = json.loads(matrix_path.read_text())
     matrix_version = matrix.get("version")
     if matrix_version != MATRIX_SCHEMA_VERSION:
