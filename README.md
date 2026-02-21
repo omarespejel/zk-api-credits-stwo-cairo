@@ -200,6 +200,13 @@ ci-equivalent preflight:
 python3 scripts/ci/preflight.py --matrix compat_matrix_ci.json
 ```
 
+## ai review policy
+
+- CodeRabbit + Greptile are advisory review bots in this repo.
+- Greptile `fixWithAI` is enabled for suggestion quality, but it does **not** auto-commit code.
+- all code changes still go through PR review + required checks before merge.
+- bot noise is limited with `excludeAuthors` in `greptile.json` (dependency/update bots).
+
 ## caveats (current)
 
 - `v2_kernel` on raw `cairo-prove` is still unsupported in this env
