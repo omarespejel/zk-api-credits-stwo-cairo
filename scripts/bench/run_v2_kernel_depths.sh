@@ -156,7 +156,7 @@ with summary_path.open("w", newline="") as f:
 PY
 
 if [[ -f "${BASELINE_SUMMARY}" ]]; then
-  python3 scripts/bench/build_v1_v2_delta.py \
+  python3 -m scripts.bench.build_v1_v2_delta \
     --baseline-summary "${BASELINE_SUMMARY}" \
     --v2-summary "${SUMMARY}" \
     --out "${DELTA}"

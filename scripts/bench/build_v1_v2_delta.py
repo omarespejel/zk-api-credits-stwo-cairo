@@ -10,8 +10,12 @@ from pathlib import Path
 if __package__:
     from .schema_contract import read_p50, read_rows, validate_summary_headers
 else:
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from schema_contract import read_p50, read_rows, validate_summary_headers
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from scripts.bench.schema_contract import (
+        read_p50,
+        read_rows,
+        validate_summary_headers,
+    )
 
 
 def parse_args() -> argparse.Namespace:

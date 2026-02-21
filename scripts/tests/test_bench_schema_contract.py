@@ -1,37 +1,16 @@
 import csv
+import importlib
 import sys
 import tempfile
 import unittest
-from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-SCHEMA_MODULE_PATH = Path(__file__).resolve().parents[1] / "bench" / "schema_contract.py"
-SCHEMA_SPEC = spec_from_file_location("schema_contract", SCHEMA_MODULE_PATH)
-if SCHEMA_SPEC is None:
-    raise ImportError("Failed to load schema_contract module spec")
-if SCHEMA_SPEC.loader is None:
-    raise ImportError("Failed to load schema_contract module loader")
-SCHEMA_MODULE = module_from_spec(SCHEMA_SPEC)
-SCHEMA_SPEC.loader.exec_module(SCHEMA_MODULE)
-
-DELTA_MODULE_PATH = Path(__file__).resolve().parents[1] / "bench" / "build_v1_v2_delta.py"
-DELTA_SPEC = spec_from_file_location("build_v1_v2_delta", DELTA_MODULE_PATH)
-if DELTA_SPEC is None:
-    raise ImportError("Failed to load build_v1_v2_delta module spec")
-if DELTA_SPEC.loader is None:
-    raise ImportError("Failed to load build_v1_v2_delta module loader")
-DELTA_MODULE = module_from_spec(DELTA_SPEC)
-
-previous_schema_module = sys.modules.get("schema_contract")
-sys.modules["schema_contract"] = SCHEMA_MODULE
-try:
-    DELTA_SPEC.loader.exec_module(DELTA_MODULE)
-finally:
-    if previous_schema_module is None:
-        sys.modules.pop("schema_contract", None)
-    else:
-        sys.modules["schema_contract"] = previous_schema_module
+SCHEMA_MODULE = importlib.import_module("scripts.bench.schema_contract")
+DELTA_MODULE = importlib.import_module("scripts.bench.build_v1_v2_delta")
 
 read_p50 = SCHEMA_MODULE.read_p50
 validate_summary_headers = SCHEMA_MODULE.validate_summary_headers
