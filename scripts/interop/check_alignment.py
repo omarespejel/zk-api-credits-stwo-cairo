@@ -23,6 +23,7 @@ REQUIRED_INT_KEYS = (
 RUN_TIMEOUT_SEC = 300
 EMPTY_MERKLE_PROOF_LEN = 0
 VIVIAN_RESERVED_LEAF_IDX = 0
+MERKLE_PROOF_SLOT_COUNT = 10
 
 
 def parse_strict_int(key: str, value: object, vector_path: Path) -> int:
@@ -182,15 +183,15 @@ def derive_root(our_repo: Path, scarb_our: str, secret: int, limit: int) -> int:
 
 def run_our_main(our_repo: Path, scarb_our: str, vector: dict, root: int) -> dict[str, int]:
     args = [
-        int(vector["identity_secret"]),
-        int(vector["ticket_index"]),
-        int(vector["x"]),
-        int(vector["scope"]),
-        int(vector["user_message_limit"]),
-        int(vector["deposit_low"]),
-        int(vector["deposit_high"]),
-        int(vector["class_price_low"]),
-        int(vector["class_price_high"]),
+        vector["identity_secret"],
+        vector["ticket_index"],
+        vector["x"],
+        vector["scope"],
+        vector["user_message_limit"],
+        vector["deposit_low"],
+        vector["deposit_high"],
+        vector["class_price_low"],
+        vector["class_price_high"],
         root,
         EMPTY_MERKLE_PROOF_LEN,
     ]
@@ -228,8 +229,8 @@ def run_vivian_main(vivian_repo: Path, scarb_vivian: str, vector: dict, root: in
         int(vector["ticket_index"]),
         VIVIAN_RESERVED_LEAF_IDX,
     ]
-    args.extend([0] * 10)
-    args.extend([0] * 10)
+    args.extend([0] * MERKLE_PROOF_SLOT_COUNT)
+    args.extend([0] * MERKLE_PROOF_SLOT_COUNT)
     args.extend([root, int(vector["x"]), int(vector["scope"])])
 
     output = run(
@@ -281,7 +282,9 @@ def main() -> int:
     vivian_repo = Path(args.vivian_repo).resolve()
     ensure_repo_dir(our_repo, "our")
     ensure_repo_dir(vivian_repo, "vivian")
-    vector_path = (our_repo / args.vector).resolve() if not Path(args.vector).is_absolute() else Path(args.vector)
+    raw_vector_path = Path(args.vector)
+    vector_path = raw_vector_path if raw_vector_path.is_absolute() else (our_repo / raw_vector_path)
+    vector_path = vector_path.resolve()
 
     if not vector_path.exists():
         raise FileNotFoundError(f"vector file not found: {vector_path}")
