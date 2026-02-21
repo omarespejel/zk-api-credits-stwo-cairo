@@ -8,6 +8,13 @@ BENCH_DEPTHS="${BENCH_DEPTHS:-8 16 20 32}"
 BENCH_ITERATIONS="${BENCH_ITERATIONS:-5}"
 RESULTS_DIR="${RESULTS_DIR:-${PROJECT_ROOT}/scripts/results/v1_v2_delta_$(date +%s)}"
 SCARB_PROFILE="${SCARB_PROFILE:-release}"
+RUN_TAG="run$(date +%s)"
+PROVER_ENGINE="scarb-prove"
+MACHINE=$(python3 - <<'PY'
+import platform
+print(f"{platform.system()}-{platform.machine()}")
+PY
+)
 mkdir -p "${RESULTS_DIR}"
 
 if [[ "${BENCH_ITERATIONS}" -lt 1 ]]; then
@@ -28,7 +35,7 @@ SUMMARY="${RESULTS_DIR}/summary.csv"
 DELTA="${RESULTS_DIR}/v1_vs_v2_delta.csv"
 
 cat > "${RAW}" <<EOF
-variant,depth,iteration,prove_wall_ms,verify_wall_ms,proof_size_bytes,proof_path
+run_tag,prover_engine,profile,target,machine,variant,depth,iteration,prove_wall_ms,verify_wall_ms,proof_size_bytes,proof_path
 EOF
 
 run_variant() {
@@ -88,7 +95,7 @@ PY
       verify_wall_ms=$((verify_end_ms - verify_start_ms))
 
       proof_size_bytes=$(wc -c < "${proof_path}" | tr -d ' ')
-      echo "${variant},${depth},${iteration},${prove_wall_ms},${verify_wall_ms},${proof_size_bytes},${proof_path}" >> "${RAW}"
+      echo "${RUN_TAG},${PROVER_ENGINE},${SCARB_PROFILE},${executable_name},${MACHINE},${variant},${depth},${iteration},${prove_wall_ms},${verify_wall_ms},${proof_size_bytes},${proof_path}" >> "${RAW}"
       echo "${variant} depth=${depth} iter=${iteration} prove_ms=${prove_wall_ms} verify_ms=${verify_wall_ms} proof_bytes=${proof_size_bytes}"
     done
   done
@@ -97,7 +104,7 @@ PY
 run_variant "v1" "zk_api_credits" "${PROJECT_ROOT}/scripts/bench_inputs"
 run_variant "v2_kernel" "zk_api_credits_v2_kernel" "${PROJECT_ROOT}/scripts/bench_inputs/v2_kernel"
 
-python3 - "${RAW}" "${SUMMARY}" "${DELTA}" <<'PY'
+python3 - "${RAW}" "${SUMMARY}" "${DELTA}" "${RUN_TAG}" "${PROVER_ENGINE}" "${SCARB_PROFILE}" "${MACHINE}" <<'PY'
 import csv
 from collections import defaultdict
 from pathlib import Path
@@ -107,12 +114,16 @@ import sys
 raw_path = Path(sys.argv[1])
 summary_path = Path(sys.argv[2])
 delta_path = Path(sys.argv[3])
+run_tag = sys.argv[4]
+prover_engine = sys.argv[5]
+profile = sys.argv[6]
+machine = sys.argv[7]
 
 rows = list(csv.DictReader(raw_path.open()))
 
 agg = defaultdict(lambda: {"prove": [], "verify": [], "size": []})
 for row in rows:
-    key = (row["variant"], int(row["depth"]))
+    key = (row["variant"], row["target"], int(row["depth"]))
     agg[key]["prove"].append(int(row["prove_wall_ms"]))
     agg[key]["verify"].append(int(row["verify_wall_ms"]))
     agg[key]["size"].append(int(row["proof_size_bytes"]))
@@ -120,7 +131,12 @@ for row in rows:
 with summary_path.open("w", newline="") as f:
     w = csv.writer(f)
     w.writerow([
+        "run_tag",
+        "prover_engine",
+        "profile",
+        "machine",
         "variant",
+        "target",
         "depth",
         "samples",
         "prove_min_ms",
@@ -133,12 +149,17 @@ with summary_path.open("w", newline="") as f:
         "size_p50_bytes",
         "size_max_bytes",
     ])
-    for (variant, depth) in sorted(agg.keys()):
-        prove = sorted(agg[(variant, depth)]["prove"])
-        verify = sorted(agg[(variant, depth)]["verify"])
-        size = sorted(agg[(variant, depth)]["size"])
+    for (variant, target, depth) in sorted(agg.keys()):
+        prove = sorted(agg[(variant, target, depth)]["prove"])
+        verify = sorted(agg[(variant, target, depth)]["verify"])
+        size = sorted(agg[(variant, target, depth)]["size"])
         w.writerow([
+            run_tag,
+            prover_engine,
+            profile,
+            machine,
             variant,
+            target,
             depth,
             len(prove),
             min(prove),
@@ -153,7 +174,7 @@ with summary_path.open("w", newline="") as f:
         ])
 
 table = {}
-for (variant, depth), vals in agg.items():
+for (variant, _target, depth), vals in agg.items():
     table[(variant, depth)] = {
         "prove": int(median(sorted(vals["prove"]))),
         "verify": int(median(sorted(vals["verify"]))),
@@ -198,6 +219,24 @@ with delta_path.open("w", newline="") as f:
 
 print(f"wrote {summary_path}")
 print(f"wrote {delta_path}")
+PY
+
+python3 - <<PY
+import json
+from datetime import datetime, timezone
+
+meta = {
+    "run_tag": "${RUN_TAG}",
+    "prover_engine": "${PROVER_ENGINE}",
+    "profile": "${SCARB_PROFILE}",
+    "targets": ["zk_api_credits", "zk_api_credits_v2_kernel"],
+    "machine": "${MACHINE}",
+    "bench_depths": "${BENCH_DEPTHS}".split(),
+    "iterations": int("${BENCH_ITERATIONS}"),
+    "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+}
+with open("${RESULTS_DIR}/bench_meta.json", "w") as f:
+    json.dump(meta, f, indent=2)
 PY
 
 echo "raw runs: ${RAW}"

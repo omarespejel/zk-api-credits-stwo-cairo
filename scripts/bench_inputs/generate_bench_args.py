@@ -20,10 +20,10 @@ import tempfile
 from pathlib import Path
 
 
-def parse_int(value: str) -> int:
-    value = value.strip()
+def parse_int(value: str | int) -> int:
     if isinstance(value, int):
         return value
+    value = str(value).strip()
     if value.lower().startswith("0x"):
         return int(value, 16)
     if value.lower().startswith("0b"):
@@ -165,7 +165,7 @@ def main() -> int:
         # [identity_secret, ticket_index, x, scope, user_message_limit, deposit_low, deposit_high, class_price_low, class_price_high, merkle_root, ...proof]
         #
         # Detection relies on where the proof length appears.
-        if len(fixture) >= 11 and parse_int(str(fixture[10])) <= 64 and parse_int(str(fixture[9])) > 64:
+        if len(fixture) >= 11 and parse_int(fixture[10]) <= 64 and parse_int(fixture[9]) > 64:
             # v2
             identity_secret = fixture[0]
             ticket_index = fixture[1]
@@ -178,7 +178,7 @@ def main() -> int:
             class_price_high = fixture[8]
             merkle_root = fixture[9]
             proof = fixture[10:]
-        elif len(fixture) >= 10 and parse_int(str(fixture[9])) <= 64 and parse_int(str(fixture[8])) > 64:
+        elif len(fixture) >= 10 and parse_int(fixture[9]) <= 64 and parse_int(fixture[8]) > 64:
             # v1
             identity_secret = fixture[0]
             ticket_index = fixture[1]
@@ -191,7 +191,7 @@ def main() -> int:
             class_price_high = fixture[7]
             merkle_root = fixture[8]
             proof = fixture[9:]
-        elif len(fixture) >= 9 and parse_int(str(fixture[8])) <= 64 and parse_int(str(fixture[7])) > 64:
+        elif len(fixture) >= 9 and parse_int(fixture[8]) <= 64 and parse_int(fixture[7]) > 64:
             # v0
             identity_secret = fixture[0]
             ticket_index = fixture[1]

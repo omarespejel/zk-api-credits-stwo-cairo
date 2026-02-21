@@ -32,6 +32,9 @@ def parse_log_path(path: Path):
     m = re.match(r'depth_(\d+)_run(\d+)_verify', stem)
     if m:
         return int(m.group(1)), int(m.group(2))
+    m = re.match(r'depth_(\d+)_run(\d+)_.+_verify', stem)
+    if m:
+        return int(m.group(1)), int(m.group(2))
     m = re.match(r'depth_(\d+)_verify', stem)
     if m:
         return int(m.group(1)), 1
@@ -61,13 +64,21 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Extract cairo-air verifier relation counts from cairo-prove verify logs."
     )
-    parser.add_argument("--verify-logs-dir", default="scripts/results", help="Directory containing *_verify.log files")
+    parser.add_argument(
+        "--verify-logs-dir",
+        default="scripts/results/main_baseline",
+        help="Directory containing *_verify.log files",
+    )
     parser.add_argument(
         "--pattern",
         default="depth_*_verify.log",
         help="Glob pattern for verify logs relative to --verify-logs-dir",
     )
-    parser.add_argument("--out", default="scripts/results/relation_counts.csv", help="Output CSV path")
+    parser.add_argument(
+        "--out",
+        default="scripts/results/main_baseline/relation_counts.csv",
+        help="Output CSV path",
+    )
     args = parser.parse_args()
 
     logs_root = Path(args.verify_logs_dir)

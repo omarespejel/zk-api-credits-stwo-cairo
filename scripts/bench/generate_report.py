@@ -62,9 +62,9 @@ def write_relation_table(f, relation_rows):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate a human-readable benchmark report.")
-    parser.add_argument("--summary", default="scripts/results/bench_summary.csv")
-    parser.add_argument("--relation-counts", default="scripts/results/relation_counts.csv")
-    parser.add_argument("--out", default="scripts/results/bench_report.md")
+    parser.add_argument("--summary", default="scripts/results/main_baseline/bench_summary.csv")
+    parser.add_argument("--relation-counts", default="scripts/results/main_baseline/relation_counts.csv")
+    parser.add_argument("--out", default="scripts/results/main_baseline/bench_report.md")
     args = parser.parse_args()
 
     summary_path = Path(args.summary)
