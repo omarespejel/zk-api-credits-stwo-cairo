@@ -3,9 +3,15 @@ from __future__ import annotations
 
 import argparse
 import csv
+import math
+import sys
 from pathlib import Path
 
-from schema_contract import read_p50, read_rows, validate_summary_headers
+if __package__:
+    from .schema_contract import read_p50, read_rows, validate_summary_headers
+else:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from schema_contract import read_p50, read_rows, validate_summary_headers
 
 
 def parse_args() -> argparse.Namespace:
@@ -30,6 +36,16 @@ def main() -> int:
     baseline_by_depth = {int(r["depth"]): r for r in baseline_rows}
     v2_by_depth = {int(r["depth"]): r for r in v2_rows}
     shared_depths = sorted(set(baseline_by_depth) & set(v2_by_depth))
+
+    def delta_or_nan(metric: str, depth: int, baseline_value: float, v2_value: float) -> float:
+        if baseline_value == 0:
+            print(
+                f"[warn] baseline {metric} is zero at depth={depth}; "
+                f"v2={v2_value}; writing NaN delta",
+                file=sys.stderr,
+            )
+            return math.nan
+        return ((v2_value - baseline_value) / baseline_value) * 100
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", newline="") as f:
@@ -56,9 +72,9 @@ def main() -> int:
             v1_size = read_p50(baseline, "size")
             v2_size = read_p50(v2, "size")
 
-            prove_delta = ((v2_prove - v1_prove) / v1_prove) * 100 if v1_prove else 0.0
-            verify_delta = ((v2_verify - v1_verify) / v1_verify) * 100 if v1_verify else 0.0
-            size_delta = ((v2_size - v1_size) / v1_size) * 100 if v1_size else 0.0
+            prove_delta = delta_or_nan("prove", depth, v1_prove, v2_prove)
+            verify_delta = delta_or_nan("verify", depth, v1_verify, v2_verify)
+            size_delta = delta_or_nan("size", depth, v1_size, v2_size)
 
             w.writerow([
                 depth,
