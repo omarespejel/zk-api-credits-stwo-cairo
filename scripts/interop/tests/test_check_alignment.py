@@ -1,15 +1,19 @@
+import subprocess
 import unittest
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+from unittest.mock import patch
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "check_alignment.py"
 SPEC = spec_from_file_location("check_alignment", MODULE_PATH)
 MODULE = module_from_spec(SPEC)
-assert SPEC is not None and SPEC.loader is not None
+if SPEC is None or SPEC.loader is None:
+    raise ImportError("Failed to load check_alignment module spec")
 SPEC.loader.exec_module(MODULE)
 
 check_alignment = MODULE.check_alignment
 parse_program_output = MODULE.parse_program_output
+run = MODULE.run
 to_args = MODULE.to_args
 validate_vector = MODULE.validate_vector
 
@@ -100,6 +104,15 @@ Saving output to: target/execute/foo
                 },
                 Path("vec.json"),
             )
+
+    def test_run_timeout_raises_runtime_error(self):
+        with patch.object(
+            MODULE.subprocess,
+            "run",
+            side_effect=subprocess.TimeoutExpired(cmd=["scarb", "build"], timeout=1),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "command timed out"):
+                run(["scarb", "build"], Path("."))
 
 
 if __name__ == "__main__":
