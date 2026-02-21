@@ -51,7 +51,6 @@ class V2SequentialDemoTests(unittest.TestCase):
             "refund_commitment_prev": "0x7b",
             "refund_amount": "0x1",
             "refund_commitment_next_expected": "0xabc",
-            "refund_ticket_hash": "0xdef",
             "server_pubkey": "0x1234",
             "signature_r": "0x5678",
             "signature_s": "0x9abc",
@@ -60,7 +59,7 @@ class V2SequentialDemoTests(unittest.TestCase):
         args = build_v2_args(prefix, remask_nonce, step)
         self.assertEqual(args[1], 5)
         self.assertEqual(args[3], 0x99)
-        self.assertEqual(args[-8:], [0x7B, 0x1, 0xABC, 9, 0xDEF, 0x1234, 0x5678, 0x9ABC])
+        self.assertEqual(args[-7:], [0x7B, 0x1, 0xABC, 9, 0x1234, 0x5678, 0x9ABC])
 
     def test_parse_proof_path(self):
         output = "x\ny\nSaving proof to: target/execute/abc/proof/proof.json\nz\n"
