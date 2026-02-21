@@ -165,66 +165,10 @@ with summary_path.open("w", newline="") as f:
 PY
 
 if [[ -f "${BASELINE_SUMMARY}" ]]; then
-  python3 - "${BASELINE_SUMMARY}" "${SUMMARY}" "${DELTA}" <<'PY'
-import csv
-import sys
-from pathlib import Path
-
-baseline = list(csv.DictReader(Path(sys.argv[1]).open()))
-v2 = list(csv.DictReader(Path(sys.argv[2]).open()))
-out = Path(sys.argv[3])
-
-baseline_by_depth = {int(r["depth"]): r for r in baseline}
-v2_by_depth = {int(r["depth"]): r for r in v2}
-
-def read_p50(row, wall_key, compact_key):
-    if wall_key in row:
-        return float(row[wall_key])
-    if compact_key in row:
-        return float(row[compact_key])
-    raise KeyError(f"missing expected key pair: {wall_key}/{compact_key}")
-
-with out.open("w", newline="") as f:
-    w = csv.writer(f)
-    w.writerow([
-        "depth",
-        "v1_prove_p50_ms",
-        "v2_prove_p50_ms",
-        "prove_delta_pct",
-        "v1_verify_p50_ms",
-        "v2_verify_p50_ms",
-        "verify_delta_pct",
-        "v1_size_p50_bytes",
-        "v2_size_p50_bytes",
-        "size_delta_pct",
-    ])
-    for depth in sorted(set(baseline_by_depth) & set(v2_by_depth)):
-        b = baseline_by_depth[depth]
-        v = v2_by_depth[depth]
-        v1_prove = read_p50(b, "prove_wall_ms_p50", "prove_p50_ms")
-        v2_prove = read_p50(v, "prove_wall_ms_p50", "prove_p50_ms")
-        v1_verify = read_p50(b, "verify_wall_ms_p50", "verify_p50_ms")
-        v2_verify = read_p50(v, "verify_wall_ms_p50", "verify_p50_ms")
-        v1_size = read_p50(b, "proof_size_bytes_p50", "size_p50_bytes")
-        v2_size = read_p50(v, "proof_size_bytes_p50", "size_p50_bytes")
-
-        prove_delta = ((v2_prove - v1_prove) / v1_prove) * 100 if v1_prove else 0.0
-        verify_delta = ((v2_verify - v1_verify) / v1_verify) * 100 if v1_verify else 0.0
-        size_delta = ((v2_size - v1_size) / v1_size) * 100 if v1_size else 0.0
-
-        w.writerow([
-            depth,
-            int(v1_prove),
-            int(v2_prove),
-            round(prove_delta, 2),
-            int(v1_verify),
-            int(v2_verify),
-            round(verify_delta, 2),
-            int(v1_size),
-            int(v2_size),
-            round(size_delta, 2),
-        ])
-PY
+  python3 scripts/bench/build_v1_v2_delta.py \
+    --baseline-summary "${BASELINE_SUMMARY}" \
+    --v2-summary "${SUMMARY}" \
+    --out "${DELTA}"
 fi
 
 python3 - <<PY
