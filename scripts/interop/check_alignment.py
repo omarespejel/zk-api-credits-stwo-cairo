@@ -23,7 +23,8 @@ REQUIRED_INT_KEYS = (
 RUN_TIMEOUT_SEC = 300
 EMPTY_MERKLE_PROOF_LEN = 0
 VIVIAN_RESERVED_LEAF_IDX = 0
-MERKLE_PROOF_SLOT_COUNT = 10
+MERKLE_TREE_MAX_DEPTH = 10
+MERKLE_PROOF_SLOT_COUNT = MERKLE_TREE_MAX_DEPTH
 
 
 def parse_strict_int(key: str, value: object, vector_path: Path) -> int:
@@ -282,8 +283,8 @@ def main() -> int:
     vivian_repo = Path(args.vivian_repo).resolve()
     ensure_repo_dir(our_repo, "our")
     ensure_repo_dir(vivian_repo, "vivian")
-    raw_vector_path = Path(args.vector)
-    vector_path = raw_vector_path if raw_vector_path.is_absolute() else (our_repo / raw_vector_path)
+    arg_vector_path = Path(args.vector)
+    vector_path = arg_vector_path if arg_vector_path.is_absolute() else (our_repo / arg_vector_path)
     vector_path = vector_path.resolve()
 
     if not vector_path.exists():
