@@ -4,6 +4,7 @@
 /scripts/results/
 /scripts/__pycache__/
 /scripts/bench/__pycache__/
+/scripts/interop/**/__pycache__/
 /result_cache/
 proof_test.json
 FORUM_POST.md
