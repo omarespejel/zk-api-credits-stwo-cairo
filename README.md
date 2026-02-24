@@ -140,6 +140,18 @@ scarb --release verify --proof-file <proof-file-from-line-above>
 python3 scripts/v2_sequential_demo.py --depth 8 --steps 3
 ```
 
+typical prove times per depth (Apple M-series, release profile):
+
+| depth | prove time | recommended `--timeout` |
+|-------|-----------|------------------------|
+| 8     | ~3s       | 600 (default)          |
+| 16    | ~5s       | 600 (default)          |
+| 20    | ~8s       | 600 (default)          |
+| 32    | ~15s      | 600 (default)          |
+
+for slower machines or CI runners, set a higher timeout via
+`--timeout 1200` or `V2_SEQUENTIAL_DEMO_TIMEOUT_S=1200`.
+
 ## cross-repo interop check
 
 there is now a shared-vector alignment check against Vivian's Cairo RLN repo.

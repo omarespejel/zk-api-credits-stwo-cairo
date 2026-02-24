@@ -20,16 +20,19 @@ P50_ALIASES: dict[str, tuple[str, str]] = {
 
 
 def read_rows(path: Path) -> list[dict[str, str]]:
+    """Read a CSV file and return rows as a list of dicts."""
     with path.open() as f:
         return list(csv.DictReader(f))
 
 
 def require_non_empty(rows: list[dict[str, str]], label: str) -> None:
+    """Raise if rows is empty."""
     if not rows:
         raise RuntimeError(f"{label} has no rows")
 
 
 def _find_metric_key(row: dict[str, str], metric: str) -> str:
+    """Resolve the actual CSV column name for a metric, tolerating legacy aliases."""
     if metric not in P50_ALIASES:
         raise KeyError(f"unknown metric: {metric}")
     for candidate in P50_ALIASES[metric]:
@@ -41,11 +44,13 @@ def _find_metric_key(row: dict[str, str], metric: str) -> str:
 
 
 def read_p50(row: dict[str, str], metric: str) -> float:
+    """Read the p50 value for a metric from a summary row, resolving column aliases."""
     key = _find_metric_key(row, metric)
     return float(row[key])
 
 
 def validate_summary_headers(rows: list[dict[str, str]], label: str) -> None:
+    """Validate that summary CSV rows contain all required common and metric columns."""
     require_non_empty(rows, label)
     sample = rows[0]
     missing_common = [key for key in COMMON_SUMMARY_COLUMNS if key not in sample]

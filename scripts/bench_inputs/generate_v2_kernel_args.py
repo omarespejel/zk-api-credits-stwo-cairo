@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 
 
+# refund_amount is 0x1 (not 0x7 from earlier v1 fixtures) so that sequential
+# chain steps each advance the commitment by a minimal unit, keeping fixture
+# generation simple and signatures bound to the standardised 4-tuple.
 DEFAULTS = {
     "refund_commitment_prev": "0x7b",
     "refund_amount": "0x1",
@@ -16,10 +19,12 @@ DEFAULTS = {
 
 
 def parse_depths(raw: str) -> list[int]:
+    """Parse a space-separated depth string into a list of ints."""
     return [int(item) for item in raw.split() if item.strip()]
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for the v2 kernel args generator."""
     p = argparse.ArgumentParser(description="Generate v2-kernel args from depth fixtures.")
     p.add_argument("--base-dir", default="scripts/bench_inputs")
     p.add_argument("--out-dir", default="scripts/bench_inputs/v2_kernel")
@@ -31,6 +36,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """Generate v2_kernel arg JSON files by appending refund tail to each depth fixture."""
     args = parse_args()
     base_dir = Path(args.base_dir)
     out_dir = Path(args.out_dir)

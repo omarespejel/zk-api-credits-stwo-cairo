@@ -23,16 +23,19 @@ V2_SCOPE_IDX = 3            # absolute index within the fixed prefix (coincident
 
 
 def parse_int(value: str | int) -> int:
+    """Convert a hex/decimal string or int to int, auto-detecting base."""
     if isinstance(value, int):
         return value
     return int(str(value), 0)
 
 
 def to_hex(value: int) -> str:
+    """Format an integer as a 0x-prefixed hex string."""
     return hex(value)
 
 
 def to_args(values: list[int]) -> str:
+    """Join a list of ints into a comma-separated hex string for scarb CLI."""
     return ",".join(to_hex(v) for v in values)
 
 
@@ -41,6 +44,7 @@ ENV_TIMEOUT = "V2_SEQUENTIAL_DEMO_TIMEOUT_S"
 
 
 def _timeout_seconds(args: argparse.Namespace) -> int:
+    """Resolve timeout: --timeout flag > env var > default (600s)."""
     if getattr(args, "timeout", None) is not None:
         return args.timeout
     raw = os.environ.get(ENV_TIMEOUT)
@@ -50,6 +54,7 @@ def _timeout_seconds(args: argparse.Namespace) -> int:
 
 
 def run(cmd: list[str], cwd: Path, timeout_s: int = DEFAULT_SUBPROCESS_TIMEOUT_S) -> tuple[str, int]:
+    """Run a subprocess, returning (stdout, elapsed_ms). Raises on failure or timeout."""
     start = time.monotonic()
     try:
         proc = subprocess.run(
@@ -75,6 +80,7 @@ def run(cmd: list[str], cwd: Path, timeout_s: int = DEFAULT_SUBPROCESS_TIMEOUT_S
 
 
 def parse_proof_path(prove_output: str) -> str:
+    """Extract the proof file path from scarb prove stdout."""
     for line in prove_output.splitlines():
         marker = "Saving proof to:"
         if marker in line:
@@ -83,6 +89,7 @@ def parse_proof_path(prove_output: str) -> str:
 
 
 def extract_prefix_and_remask(base_args: list[int]) -> tuple[list[int], int]:
+    """Split base v2 args into (fixed prefix, remask_nonce) by parsing the proof length field."""
     # v2_kernel args (0-indexed):
     # 0..9   fixed public/private prefix ending at merkle_root
     # 10     merkle_proof length
@@ -100,6 +107,7 @@ def extract_prefix_and_remask(base_args: list[int]) -> tuple[list[int], int]:
 
 
 def build_v2_args(prefix: list[int], remask_nonce: int, step: dict) -> list[int]:
+    """Construct v2_kernel CLI args from the fixed prefix and a chain step dict."""
     args = list(prefix)
     args[V2_TICKET_INDEX_IDX] = parse_int(step["ticket_index"])
     args[V2_SCOPE_IDX] = parse_int(step["scope"])
@@ -118,6 +126,7 @@ def build_v2_args(prefix: list[int], remask_nonce: int, step: dict) -> list[int]
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for the sequential v2 demo."""
     p = argparse.ArgumentParser(description="Sequential V2 kernel state demo (no parallel branches).")
     p.add_argument("--repo", default=".")
     p.add_argument("--depth", type=int, default=8)
@@ -137,6 +146,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """Run a sequential chain of v2 proofs and report results as JSON."""
     args = parse_args()
     repo = Path(args.repo).resolve()
     base_args_path = repo / f"scripts/bench_inputs/v2_kernel/depth_{args.depth}.json"
