@@ -9,6 +9,8 @@ V2_FIXED_PREFIX_LEN = 11
 V2_PROOF_LEN_IDX = 10
 V2_TAIL_LEN = 7
 V2_REMASK_NONCE_OFFSET = 3
+V2_TICKET_INDEX_IDX = 1
+V2_SCOPE_IDX = 3
 
 
 def parse_int(value: str | int) -> int:
@@ -68,8 +70,8 @@ def extract_prefix_and_remask(base_args: list[int]) -> tuple[list[int], int]:
 
 def build_v2_args(prefix: list[int], remask_nonce: int, step: dict) -> list[int]:
     args = list(prefix)
-    args[1] = parse_int(step["ticket_index"])
-    args[3] = parse_int(step["scope"])
+    args[V2_TICKET_INDEX_IDX] = parse_int(step["ticket_index"])
+    args[V2_SCOPE_IDX] = parse_int(step["scope"])
     args.extend(
         [
             parse_int(step["refund_commitment_prev"]),
@@ -173,9 +175,12 @@ def main() -> int:
     stale_prev = parse_int(stale["refund_commitment_prev"])
     stale_rejected = stale_prev != local_state
 
-    branch = chain[1 if len(chain) > 1 else 0]
-    branch_prev = parse_int(branch["refund_commitment_prev"])
-    branch_rejected = branch_prev != local_state
+    if len(chain) > 1:
+        branch = chain[1]
+        branch_prev = parse_int(branch["refund_commitment_prev"])
+        branch_rejected = branch_prev != local_state
+    else:
+        branch_rejected = None
 
     report = {
         "depth": args.depth,
