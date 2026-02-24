@@ -79,5 +79,29 @@ class V2SequentialDemoTests(unittest.TestCase):
             parse_proof_path("no proof path here")
 
 
+    def test_timeout_seconds_cli_overrides_env(self):
+        """--timeout flag takes precedence over env var and default."""
+        import argparse
+        import os
+        _timeout_seconds = MODULE._timeout_seconds
+        DEFAULT = MODULE.DEFAULT_SUBPROCESS_TIMEOUT_S
+
+        ns = argparse.Namespace(timeout=42)
+        self.assertEqual(_timeout_seconds(ns), 42)
+
+        ns_none = argparse.Namespace(timeout=None)
+        old = os.environ.get(MODULE.ENV_TIMEOUT)
+        try:
+            os.environ[MODULE.ENV_TIMEOUT] = "999"
+            self.assertEqual(_timeout_seconds(ns_none), 999)
+            del os.environ[MODULE.ENV_TIMEOUT]
+            self.assertEqual(_timeout_seconds(ns_none), DEFAULT)
+        finally:
+            if old is not None:
+                os.environ[MODULE.ENV_TIMEOUT] = old
+            elif MODULE.ENV_TIMEOUT in os.environ:
+                del os.environ[MODULE.ENV_TIMEOUT]
+
+
 if __name__ == "__main__":
     unittest.main()
