@@ -27,8 +27,10 @@ def to_args(values: list[int]) -> str:
     return ",".join(to_hex(v) for v in values)
 
 
+SUBPROCESS_TIMEOUT_S = 600
+
 def run(cmd: list[str], cwd: Path) -> tuple[str, int]:
-    start = time.time()
+    start = time.monotonic()
     proc = subprocess.run(
         cmd,
         cwd=str(cwd),
@@ -36,8 +38,9 @@ def run(cmd: list[str], cwd: Path) -> tuple[str, int]:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         check=False,
+        timeout=SUBPROCESS_TIMEOUT_S,
     )
-    elapsed_ms = int((time.time() - start) * 1000)
+    elapsed_ms = int((time.monotonic() - start) * 1000)
     if proc.returncode != 0:
         raise RuntimeError(f"command failed ({proc.returncode}): {' '.join(cmd)}\n{proc.stdout}")
     return proc.stdout, elapsed_ms
@@ -125,6 +128,9 @@ def main() -> int:
     local_state = parse_int(steps[0]["refund_commitment_prev"])
     if local_state == 0:
         raise ValueError("chain fixture has zero initial refund_commitment_prev; likely invalid")
+    first_step_idx = steps[0].get("step", 0)
+    if first_step_idx != 0:
+        raise ValueError(f"chain fixture starts at step={first_step_idx}; expected genesis step=0")
     runs = []
 
     for step in steps:
@@ -175,7 +181,7 @@ def main() -> int:
     stale_prev = parse_int(stale["refund_commitment_prev"])
     stale_rejected = stale_prev != local_state
 
-    if len(chain) > 1:
+    if len(chain) > 1 and args.steps >= 2:
         branch = chain[1]
         branch_prev = parse_int(branch["refund_commitment_prev"])
         branch_rejected = branch_prev != local_state
