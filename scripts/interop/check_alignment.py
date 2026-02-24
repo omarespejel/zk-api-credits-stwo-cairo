@@ -19,6 +19,14 @@ REQUIRED_INT_KEYS = (
     "class_price_low",
     "class_price_high",
 )
+VIVIAN_REQUIRED_INT_KEYS = (
+    "vivian_merkle_proof_length",
+    "vivian_expected_root",
+)
+VIVIAN_REQUIRED_ARRAY_KEYS = (
+    "vivian_merkle_proof_indices",
+    "vivian_merkle_proof_siblings",
+)
 
 RUN_TIMEOUT_SEC = 300
 EMPTY_MERKLE_PROOF_LEN = 0
@@ -96,11 +104,11 @@ def to_args(values: list[int]) -> str:
     return ",".join(str(v) for v in values)
 
 
-def validate_vector(vector_raw: object, vector_path: Path) -> dict[str, int | str]:
+def validate_vector(vector_raw: object, vector_path: Path) -> dict[str, int | str | list[int]]:
     if not isinstance(vector_raw, dict):
         raise ValueError(f"vector must be a JSON object: {vector_path}")
 
-    vector: dict[str, int | str] = {}
+    vector: dict[str, int | str | list[int]] = {}
     for key in REQUIRED_INT_KEYS:
         if key not in vector_raw:
             raise ValueError(f"vector missing required key '{key}' in {vector_path}")
@@ -108,6 +116,34 @@ def validate_vector(vector_raw: object, vector_path: Path) -> dict[str, int | st
 
     if "name" in vector_raw:
         vector["name"] = str(vector_raw["name"])
+
+    # Optional Vivian RLN strict inputs. If one is present, require all.
+    has_any_vivian_key = any(
+        key in vector_raw for key in (*VIVIAN_REQUIRED_INT_KEYS, *VIVIAN_REQUIRED_ARRAY_KEYS)
+    )
+    if has_any_vivian_key:
+        for key in VIVIAN_REQUIRED_INT_KEYS:
+            if key not in vector_raw:
+                raise ValueError(f"vector missing required key '{key}' in {vector_path}")
+            parsed = parse_strict_int(key, vector_raw[key], vector_path)
+            if key == "vivian_merkle_proof_length" and not (0 <= parsed <= MERKLE_PROOF_SLOT_COUNT):
+                raise ValueError(
+                    f"vector key '{key}' must be between 0 and {MERKLE_PROOF_SLOT_COUNT} "
+                    f"in {vector_path}"
+                )
+            vector[key] = parsed
+        for key in VIVIAN_REQUIRED_ARRAY_KEYS:
+            if key not in vector_raw:
+                raise ValueError(f"vector missing required key '{key}' in {vector_path}")
+            raw = vector_raw[key]
+            if not isinstance(raw, list):
+                raise ValueError(f"vector key '{key}' must be a JSON array in {vector_path}")
+            if len(raw) != MERKLE_PROOF_SLOT_COUNT:
+                raise ValueError(
+                    f"vector key '{key}' must have {MERKLE_PROOF_SLOT_COUNT} entries "
+                    f"in {vector_path}"
+                )
+            vector[key] = [parse_strict_int(f"{key}[{i}]", value, vector_path) for i, value in enumerate(raw)]
 
     return vector
 
@@ -147,7 +183,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_vector(vector_path: Path) -> dict[str, int | str]:
+def load_vector(vector_path: Path) -> dict[str, int | str | list[int]]:
     try:
         vector_raw = json.loads(vector_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
@@ -163,6 +199,8 @@ def ensure_repo_dir(path: Path, label: str) -> None:
 
 
 def derive_root(our_repo: Path, scarb_our: str, secret: int, limit: int) -> int:
+    # derive_rate_commitment_root executable arg order:
+    # [identity_secret, user_message_limit, merkle_proof_length]
     output = run(
         [
             scarb_our,
@@ -223,19 +261,44 @@ def run_our_main(our_repo: Path, scarb_our: str, vector: dict, root: int) -> dic
     }
 
 
-def run_vivian_main(vivian_repo: Path, scarb_vivian: str, vector: dict, root: int) -> dict[str, int]:
-    # cairo_circuits CLI args: [secret, limit, ticket, reserved0] +
-    # 10 sibling slots + 10 path-index slots (zero-padded in this shared vector) +
-    # [expected_root, x, scope]
-    args = [
-        vector["identity_secret"],
-        vector["user_message_limit"],
-        vector["ticket_index"],
-        VIVIAN_RESERVED_LEAF_IDX,
-    ]
-    args.extend([0] * MERKLE_PROOF_SLOT_COUNT)
-    args.extend([0] * MERKLE_PROOF_SLOT_COUNT)
-    args.extend([root, vector["x"], vector["scope"]])
+def resolve_vivian_project_root(vivian_repo: Path) -> Path:
+    # New repo layout has per-circuit subdirs (e.g. rln/Scarb.toml).
+    rln_root = vivian_repo / "rln"
+    if (rln_root / "Scarb.toml").exists():
+        return rln_root
+    return vivian_repo
+
+
+def run_vivian_main(vivian_repo: Path, scarb_vivian: str, vector: dict) -> dict[str, int]:
+    # -p cairo_circuits: the RLN package is named cairo_circuits in both the
+    # old flat layout and the new rln/ subdirectory (see rln/Scarb.toml).
+    project_root = resolve_vivian_project_root(vivian_repo)
+    strict_mode = "vivian_merkle_proof_length" in vector
+
+    if strict_mode:
+        # Current rln executable arg order:
+        # [secret, limit, message_id, merkle_proof_length] +
+        # [indices(10)] + [siblings(10)] + [expected_root, x, scope]
+        args = [
+            vector["identity_secret"],
+            vector["user_message_limit"],
+            vector["ticket_index"],
+            vector["vivian_merkle_proof_length"],
+        ]
+        args.extend(vector["vivian_merkle_proof_indices"])
+        args.extend(vector["vivian_merkle_proof_siblings"])
+        args.extend([vector["vivian_expected_root"], vector["x"], vector["scope"]])
+    else:
+        # Legacy shape.
+        args = [
+            vector["identity_secret"],
+            vector["user_message_limit"],
+            vector["ticket_index"],
+            VIVIAN_RESERVED_LEAF_IDX,
+        ]
+        args.extend([0] * MERKLE_PROOF_SLOT_COUNT)
+        args.extend([0] * MERKLE_PROOF_SLOT_COUNT)
+        args.extend([0, vector["x"], vector["scope"]])
 
     output = run(
         [
@@ -248,7 +311,7 @@ def run_vivian_main(vivian_repo: Path, scarb_vivian: str, vector: dict, root: in
             to_args(args),
             "--print-program-output",
         ],
-        cwd=vivian_repo,
+        cwd=project_root,
     )
     values = parse_program_output(output)
     if len(values) != 5:
@@ -262,7 +325,12 @@ def run_vivian_main(vivian_repo: Path, scarb_vivian: str, vector: dict, root: in
     }
 
 
-def check_alignment(our_out: dict[str, int], vivian_out: dict[str, int], root: int) -> None:
+def check_alignment(
+    our_out: dict[str, int],
+    vivian_out: dict[str, int],
+    our_root: int,
+    vivian_root_expected: int | None,
+) -> None:
     mismatches: list[str] = []
     if our_out["nullifier"] != vivian_out["nullifier"]:
         mismatches.append(
@@ -270,11 +338,14 @@ def check_alignment(our_out: dict[str, int], vivian_out: dict[str, int], root: i
         )
     if our_out["y"] != vivian_out["y"]:
         mismatches.append(f"y mismatch: ours={our_out['y']} vivian={vivian_out['y']}")
-    if our_out["root"] != root:
-        mismatches.append(f"our output root mismatch: out={our_out['root']} expected={root}")
-    if vivian_out["root"] != root:
+    if our_out["root"] != our_root:
         mismatches.append(
-            f"vivian output root mismatch: out={vivian_out['root']} expected={root}"
+            f"our output root mismatch: out={our_out['root']} expected={our_root}"
+        )
+    if vivian_root_expected is not None and vivian_out["root"] != vivian_root_expected:
+        mismatches.append(
+            f"vivian output root mismatch: out={vivian_out['root']} "
+            f"expected={vivian_root_expected}"
         )
     if mismatches:
         raise AssertionError("alignment check failed:\n" + "\n".join(mismatches))
@@ -297,20 +368,27 @@ def main() -> int:
 
     if not args.skip_build:
         run([args.scarb_our, "--release", "build"], cwd=our_repo)
-        run([args.scarb_vivian, "--release", "build"], cwd=vivian_repo)
+        run(
+            [args.scarb_vivian, "--release", "build"],
+            cwd=resolve_vivian_project_root(vivian_repo),
+        )
 
     secret = vector["identity_secret"]
     limit = vector["user_message_limit"]
 
-    root = derive_root(our_repo, args.scarb_our, secret, limit)
-    our_out = run_our_main(our_repo, args.scarb_our, vector, root)
-    vivian_out = run_vivian_main(vivian_repo, args.scarb_vivian, vector, root)
+    our_root = derive_root(our_repo, args.scarb_our, secret, limit)
+    our_out = run_our_main(our_repo, args.scarb_our, vector, our_root)
+    vivian_out = run_vivian_main(vivian_repo, args.scarb_vivian, vector)
+    vivian_root_expected = (
+        vector["vivian_expected_root"] if "vivian_expected_root" in vector else None
+    )
 
-    check_alignment(our_out, vivian_out, root)
+    check_alignment(our_out, vivian_out, our_root, vivian_root_expected)
 
     report = {
         "vector": vector.get("name", str(vector_path)),
-        "root": root,
+        "our_root": our_root,
+        "vivian_root_expected": vivian_root_expected,
         "our": our_out,
         "vivian": vivian_out,
         "status": "ok",

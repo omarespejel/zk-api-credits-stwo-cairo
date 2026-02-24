@@ -173,7 +173,11 @@ python3 scripts/interop/check_alignment.py \
 
 notes:
 - this check computes a shared root first using `derive_rate_commitment_root`.
-- it then executes both repos with aligned inputs and enforces output equality on `nullifier` and `y`.
+- it then executes both repos with aligned inputs and verifies:
+  - `nullifier` equality across both implementations
+  - `y` (SSS share) equality across both implementations
+  - our output root matches the derived root
+  - Vivian's output root matches `vivian_expected_root` from the vector (when present)
 
 ## benchmark commands
 
