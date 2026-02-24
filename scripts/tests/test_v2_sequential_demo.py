@@ -18,6 +18,7 @@ parse_proof_path = MODULE.parse_proof_path
 
 class V2SequentialDemoTests(unittest.TestCase):
     def test_extract_prefix_and_remask(self):
+        """Prefix is the first 13 elements and remask_nonce is parsed from the tail."""
         base = [
             "0x2a",
             "0x3",
@@ -48,6 +49,7 @@ class V2SequentialDemoTests(unittest.TestCase):
         self.assertEqual(remask, 9)
 
     def test_build_v2_args_rewrites_ticket_scope_and_tail(self):
+        """build_v2_args overwrites ticket_index/scope in prefix and appends 7-element tail."""
         prefix = [42, 3, 12345, 32, 32, 1000, 0, 100, 0, 999, 0]
         remask_nonce = 9
         step = {
@@ -67,10 +69,12 @@ class V2SequentialDemoTests(unittest.TestCase):
         self.assertEqual(args[-7:], [0x7B, 0x1, 0xABC, 9, 0x1234, 0x5678, 0x9ABC])
 
     def test_parse_proof_path(self):
+        """Extracts proof path from output containing the 'Saving proof to:' marker."""
         output = "x\ny\nSaving proof to: target/execute/abc/proof/proof.json\nz\n"
         self.assertEqual(parse_proof_path(output), "target/execute/abc/proof/proof.json")
 
     def test_parse_proof_path_missing_raises(self):
+        """Raises ValueError when proof marker is absent from output."""
         with self.assertRaises(ValueError):
             parse_proof_path("no proof path here")
 

@@ -19,6 +19,7 @@ else:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for the v1-vs-v2 delta builder."""
     parser = argparse.ArgumentParser(description="Build v1 vs v2 delta table from summary CSV files.")
     parser.add_argument("--baseline-summary", required=True)
     parser.add_argument("--v2-summary", required=True)
@@ -27,6 +28,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """Read baseline and v2 summaries, compute percentage deltas, write CSV."""
     args = parse_args()
     baseline_path = Path(args.baseline_summary)
     v2_path = Path(args.v2_summary)
@@ -42,6 +44,7 @@ def main() -> int:
     shared_depths = sorted(set(baseline_by_depth) & set(v2_by_depth))
 
     def delta_or_nan(metric: str, depth: int, baseline_value: float, v2_value: float) -> float:
+        """Return percentage change, or NaN with a warning when baseline is zero."""
         if baseline_value == 0:
             print(
                 f"[warn] baseline {metric} is zero at depth={depth}; "

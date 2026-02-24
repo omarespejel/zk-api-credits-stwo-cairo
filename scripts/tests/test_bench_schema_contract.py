@@ -17,6 +17,7 @@ validate_summary_headers = SCHEMA_MODULE.validate_summary_headers
 
 
 def write_csv(path: Path, headers: list[str], rows: list[list[str]]) -> None:
+    """Write a CSV file from headers and row lists (test helper)."""
     with path.open("w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(headers)
@@ -25,6 +26,7 @@ def write_csv(path: Path, headers: list[str], rows: list[list[str]]) -> None:
 
 class BenchSchemaContractTests(unittest.TestCase):
     def test_validate_summary_headers_accepts_baseline_schema(self):
+        """Legacy baseline column names (prove_wall_ms_p50 etc.) pass validation."""
         rows = [
             {
                 "run_tag": "run1",
@@ -55,6 +57,7 @@ class BenchSchemaContractTests(unittest.TestCase):
         validate_summary_headers(rows, "compact")
 
     def test_validate_summary_headers_rejects_missing_metric(self):
+        """Missing size metric column raises KeyError."""
         rows = [
             {
                 "run_tag": "run1",
@@ -70,12 +73,14 @@ class BenchSchemaContractTests(unittest.TestCase):
             validate_summary_headers(rows, "missing-size")
 
     def test_read_p50_resolves_aliases(self):
+        """read_p50 returns correct float from both legacy and compact column names."""
         old_row = {"prove_wall_ms_p50": "123"}
         new_row = {"prove_p50_ms": "456"}
         self.assertEqual(read_p50(old_row, "prove"), 123.0)
         self.assertEqual(read_p50(new_row, "prove"), 456.0)
 
     def test_build_delta_cli_handles_mixed_schemas(self):
+        """Delta builder works when baseline uses legacy and v2 uses compact columns."""
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             baseline = tmp_path / "baseline.csv"
@@ -140,6 +145,7 @@ class BenchSchemaContractTests(unittest.TestCase):
             self.assertEqual(rows[0]["v2_prove_p50_ms"], "150")
 
     def test_build_delta_cli_zero_baseline_emits_nan_delta(self):
+        """Zero baseline prove value produces NaN delta instead of crashing."""
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             baseline = tmp_path / "baseline.csv"

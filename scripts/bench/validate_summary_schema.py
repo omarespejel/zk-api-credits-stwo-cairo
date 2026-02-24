@@ -13,6 +13,7 @@ else:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for the schema validator."""
     parser = argparse.ArgumentParser(description="Validate benchmark summary CSV schema contract.")
     parser.add_argument("--summary", required=True, help="Path to summary CSV file.")
     parser.add_argument("--label", default=None, help="Human-readable label in errors.")
@@ -20,6 +21,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """Load a summary CSV and validate its schema against the contract."""
     args = parse_args()
     summary_path = Path(args.summary)
     if not summary_path.exists():

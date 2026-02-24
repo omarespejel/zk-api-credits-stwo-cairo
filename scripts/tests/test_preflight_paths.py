@@ -16,12 +16,14 @@ discover_benchmark_contract_paths = MODULE.discover_benchmark_contract_paths
 
 class PreflightPathTests(unittest.TestCase):
     def test_discover_benchmark_contract_paths_filters_missing(self):
+        """Returns empty list when no benchmark summary files exist."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             found = discover_benchmark_contract_paths(root)
             self.assertEqual(found, [])
 
     def test_discover_benchmark_contract_paths_returns_existing(self):
+        """Returns paths when the expected benchmark summary file exists."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             path = root / "scripts/results/main_baseline/bench_summary.csv"
