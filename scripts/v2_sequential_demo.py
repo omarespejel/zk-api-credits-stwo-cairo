@@ -252,27 +252,28 @@ def main() -> int:
             }
         )
 
-    # NOTE: The following are Python-level state comparisons only.
-    # They verify that fixture refund_commitment_prev no longer matches the
-    # advanced local state; they do NOT invoke the circuit (scarb prove).
+    # NOTE: The following are fixture-staleness checks only.
+    # They compare fixture refund_commitment_prev against the advanced local
+    # state and do NOT invoke the circuit (no scarb prove call here).
+    # Keep legacy "*_rejected" report keys for backward compatibility.
     stale = chain[0]
     stale_prev = parse_int(stale["refund_commitment_prev"])
-    stale_rejected = stale_prev != local_state
+    stale_fixture_stale = stale_prev != local_state
 
     if len(chain) > 1 and args.steps >= 2:
         branch = chain[1]
         branch_prev = parse_int(branch["refund_commitment_prev"])
-        branch_rejected = branch_prev != local_state
+        branch_fixture_stale = branch_prev != local_state
     else:
-        branch_rejected = None
+        branch_fixture_stale = None
 
     report = {
         "depth": args.depth,
         "steps_requested": args.steps,
         "steps_executed": len(runs),
         "final_state": to_hex(local_state),
-        "stale_replay_rejected": stale_rejected,
-        "branch_attempt_rejected": branch_rejected,
+        "stale_replay_rejected": stale_fixture_stale,
+        "branch_attempt_rejected": branch_fixture_stale,
         "runs": runs,
     }
     print(json.dumps(report, indent=2))
