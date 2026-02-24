@@ -41,6 +41,8 @@ fn build_rate_commitment(identity_secret: felt252, user_message_limit: u32) -> f
 fn build_refund_ticket_hash(
     refund_commitment_prev: felt252, refund_amount: felt252, ticket_index: felt252, scope: felt252,
 ) -> felt252 {
+    // Canonical binding for server signatures. The exact field order is part of
+    // the signed domain: changing order changes the hash and invalidates reuse.
     hash_poseidon_quad(refund_commitment_prev, refund_amount, ticket_index, scope)
 }
 
@@ -143,6 +145,7 @@ fn derive_rate_commitment_root(
 fn derive_refund_transition(
     refund_commitment_prev: felt252, refund_amount: felt252, ticket_index: felt252, scope: felt252,
 ) -> (felt252, felt252) {
+    // Helper for off-chain tooling: returns (hash-to-sign, next-state commitment).
     let refund_ticket_hash = build_refund_ticket_hash(
         refund_commitment_prev, refund_amount, ticket_index, scope,
     );

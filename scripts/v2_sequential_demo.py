@@ -4,7 +4,8 @@
 Chain fixture schema: each step must have step, ticket_index, scope,
 refund_commitment_prev, refund_amount, refund_commitment_next_expected,
 server_pubkey, signature_r, signature_s. Genesis step (step=0) must have
-refund_commitment_prev equal to GENESIS_REFUND_COMMITMENT_PREV.
+refund_commitment_prev equal to GENESIS_REFUND_COMMITMENT_PREV. Steps must be
+monotonic and gap-free (0, 1, 2, ...).
 """
 import argparse
 import json
@@ -188,6 +189,12 @@ def main() -> int:
             raise ValueError(
                 f"chain entry {i} is missing required fields: {', '.join(sorted(missing))}"
             )
+        step_no = parse_int(s["step"])
+        if step_no != i:
+            raise ValueError(
+                f"chain entry {i} has step={step_no}; expected {i} "
+                "(monotonic contiguous sequence starting at 0)"
+            )
 
     local_state = parse_int(steps[0]["refund_commitment_prev"])
     if local_state == 0:
@@ -197,8 +204,6 @@ def main() -> int:
             f"chain fixture genesis refund_commitment_prev={to_hex(local_state)} "
             f"does not match expected {to_hex(GENESIS_REFUND_COMMITMENT_PREV)}"
         )
-    if steps[0]["step"] != 0:
-        raise ValueError(f"chain fixture starts at step={steps[0]['step']}; expected genesis step=0")
     runs = []
 
     for step in steps:
