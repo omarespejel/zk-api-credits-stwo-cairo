@@ -104,11 +104,11 @@ def to_args(values: list[int]) -> str:
     return ",".join(str(v) for v in values)
 
 
-def validate_vector(vector_raw: object, vector_path: Path) -> dict[str, int | str]:
+def validate_vector(vector_raw: object, vector_path: Path) -> dict[str, int | str | list[int]]:
     if not isinstance(vector_raw, dict):
         raise ValueError(f"vector must be a JSON object: {vector_path}")
 
-    vector: dict[str, int | str] = {}
+    vector: dict[str, int | str | list[int]] = {}
     for key in REQUIRED_INT_KEYS:
         if key not in vector_raw:
             raise ValueError(f"vector missing required key '{key}' in {vector_path}")
@@ -177,7 +177,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_vector(vector_path: Path) -> dict[str, int | str]:
+def load_vector(vector_path: Path) -> dict[str, int | str | list[int]]:
     try:
         vector_raw = json.loads(vector_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
@@ -193,6 +193,8 @@ def ensure_repo_dir(path: Path, label: str) -> None:
 
 
 def derive_root(our_repo: Path, scarb_our: str, secret: int, limit: int) -> int:
+    # derive_rate_commitment_root executable arg order:
+    # [identity_secret, user_message_limit, merkle_proof_length]
     output = run(
         [
             scarb_our,
@@ -262,6 +264,8 @@ def resolve_vivian_project_root(vivian_repo: Path) -> Path:
 
 
 def run_vivian_main(vivian_repo: Path, scarb_vivian: str, vector: dict) -> dict[str, int]:
+    # -p cairo_circuits: the RLN package is named cairo_circuits in both the
+    # old flat layout and the new rln/ subdirectory (see rln/Scarb.toml).
     project_root = resolve_vivian_project_root(vivian_repo)
     strict_mode = "vivian_merkle_proof_length" in vector
 
@@ -370,7 +374,7 @@ def main() -> int:
     our_out = run_our_main(our_repo, args.scarb_our, vector, our_root)
     vivian_out = run_vivian_main(vivian_repo, args.scarb_vivian, vector)
     vivian_root_expected = (
-        int(vector["vivian_expected_root"]) if "vivian_expected_root" in vector else None
+        vector["vivian_expected_root"] if "vivian_expected_root" in vector else None
     )
 
     check_alignment(our_out, vivian_out, our_root, vivian_root_expected)

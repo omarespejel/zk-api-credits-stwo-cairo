@@ -163,7 +163,33 @@ Saving output to: target/execute/foo
             with self.assertRaisesRegex(ValueError, r"invalid json in vector file .*bad\.json"):
                 load_vector(path)
 
+    def test_validate_vector_partial_vivian_keys_raises(self):
+        """Providing only some Vivian keys raises for the missing ones."""
+        base = {
+            "identity_secret": 1, "user_message_limit": 3, "ticket_index": 1,
+            "x": 43, "scope": 32, "deposit_low": 1000, "deposit_high": 0,
+            "class_price_low": 100, "class_price_high": 0,
+            "vivian_merkle_proof_length": 2,
+        }
+        with self.assertRaisesRegex(ValueError, "missing required key 'vivian_expected_root'"):
+            validate_vector(base, Path("vec.json"))
+
+    def test_validate_vector_wrong_array_length_raises(self):
+        """Vivian array with wrong length raises ValueError."""
+        base = {
+            "identity_secret": 1, "user_message_limit": 3, "ticket_index": 1,
+            "x": 43, "scope": 32, "deposit_low": 1000, "deposit_high": 0,
+            "class_price_low": 100, "class_price_high": 0,
+            "vivian_merkle_proof_length": 2,
+            "vivian_expected_root": 999,
+            "vivian_merkle_proof_indices": [0] * 5,
+            "vivian_merkle_proof_siblings": [0] * 10,
+        }
+        with self.assertRaisesRegex(ValueError, "must have 10 entries"):
+            validate_vector(base, Path("vec.json"))
+
     def test_run_vivian_main_uses_release_profile(self):
+        """Strict mode builds correct arg payload with proper ordering."""
         vector = {
             "identity_secret": 42,
             "user_message_limit": 32,
@@ -181,14 +207,31 @@ Saving output to: target/execute/foo
             cmd = run_mock.call_args.args[0]
             self.assertEqual(cmd[:3], ["scarb", "--release", "execute"])
             self.assertEqual(out["nullifier"], 5)
+            args_str = cmd[cmd.index("--arguments") + 1]
+            parts = args_str.split(",")
+            self.assertEqual(len(parts), 27)
+            self.assertEqual(parts[0], "42")
+            self.assertEqual(parts[3], "2")
+            self.assertEqual(parts[24], "999")
+            self.assertEqual(parts[25], "12345")
+            self.assertEqual(parts[26], "77")
 
     def test_resolve_vivian_project_root_prefers_rln_subdir(self):
+        """Returns rln/ when rln/Scarb.toml exists."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
             (repo / "rln").mkdir()
             (repo / "rln" / "Scarb.toml").write_text("[package]\nname='x'\n")
             resolved = resolve_vivian_project_root(repo)
             self.assertEqual(resolved, repo / "rln")
+
+    def test_resolve_vivian_project_root_falls_back_to_repo(self):
+        """Returns repo root when rln/ exists but has no Scarb.toml."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            (repo / "rln").mkdir()
+            resolved = resolve_vivian_project_root(repo)
+            self.assertEqual(resolved, repo)
 
     def test_run_timeout_raises_runtime_error(self):
         with patch.object(
