@@ -1,0 +1,113 @@
+name: enforce-ai-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+
+jobs:
+  enforce-ai-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate disabled
+        if: ${{ vars.ENFORCE_AI_REVIEW_GATE != 'true' }}
+        run: echo "ENFORCE_AI_REVIEW_GATE is not true; skipping AI gate."
+
+      - name: Enforce AI review signals
+        if: ${{ vars.ENFORCE_AI_REVIEW_GATE == 'true' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pr = context.payload.pull_request;
+            const headSha = pr.head.sha;
+
+            const codeRabbitCheck = process.env.CODERABBIT_CHECK_NAME || "CodeRabbit";
+            const greptileCheck = process.env.GREPTILE_CHECK_NAME || "Greptile Review";
+            const requireAiSignals = (process.env.REQUIRE_AI_APPROVALS || "false").toLowerCase() === "true";
+
+            const checksResp = await github.rest.checks.listForRef({
+              owner,
+              repo,
+              ref: headSha,
+              per_page: 100
+            });
+
+            const runs = checksResp.data.check_runs || [];
+            const findLatestByName = (name) =>
+              runs
+                .filter((r) => r.name === name)
+                .sort(
+                  (a, b) =>
+                    new Date(b.completed_at || b.started_at || 0) -
+                    new Date(a.completed_at || a.started_at || 0)
+                )[0];
+
+            const codeRabbitRun = findLatestByName(codeRabbitCheck);
+            const greptileRun = findLatestByName(greptileCheck);
+
+            function assertCheck(check, label) {
+              if (!check) {
+                core.setFailed(`Missing required check run: ${label}`);
+                return false;
+              }
+              if (check.status !== "completed") {
+                core.setFailed(`Check not completed: ${label} (status=${check.status})`);
+                return false;
+              }
+              if (check.conclusion !== "success") {
+                core.setFailed(`Check not successful: ${label} (conclusion=${check.conclusion})`);
+                return false;
+              }
+              core.info(`Check passed: ${label}`);
+              return true;
+            }
+
+            const checksOk =
+              assertCheck(codeRabbitRun, codeRabbitCheck) &&
+              assertCheck(greptileRun, greptileCheck);
+
+            if (!checksOk) return;
+
+            if (!requireAiSignals) {
+              core.info("REQUIRE_AI_APPROVALS is not true; skipping bot review signal checks.");
+              return;
+            }
+
+            const reviewsResp = await github.rest.pulls.listReviews({
+              owner,
+              repo,
+              pull_number: pr.number,
+              per_page: 100
+            });
+            const reviews = reviewsResp.data || [];
+
+            function hasAcceptableSignal(login) {
+              const authored = reviews.filter((r) => r.user && r.user.login === login);
+              if (authored.length === 0) return false;
+              const latest = authored[authored.length - 1];
+              // Bots typically COMMENT; treat COMMENTED/APPROVED as acceptable signals.
+              return latest.state === "COMMENTED" || latest.state === "APPROVED";
+            }
+
+            const codeRabbitSignal = hasAcceptableSignal("coderabbitai");
+            const greptileSignal = hasAcceptableSignal("greptile-apps");
+
+            if (!codeRabbitSignal || !greptileSignal) {
+              core.setFailed(
+                `Missing required bot review signal(s): ` +
+                `coderabbitai=${codeRabbitSignal}, greptile-apps=${greptileSignal}`
+              );
+              return;
+            }
+
+            core.info("AI review gate passed.");
+        env:
+          CODERABBIT_CHECK_NAME: CodeRabbit
+          GREPTILE_CHECK_NAME: Greptile Review
+          REQUIRE_AI_APPROVALS: ${{ vars.REQUIRE_AI_APPROVALS }}

@@ -3,8 +3,11 @@ early_access: false
 
 reviews:
   profile: "assertive"
+  request_changes_workflow: true
   high_level_summary: true
   review_status: true
+  review_details: true
+  collapse_walkthrough: false
   commit_status: true
   fail_commit_status: true
   changed_files_summary: true
@@ -24,21 +27,69 @@ reviews:
       instructions: |
         Prioritize constraint soundness, witness/public boundary correctness, and arithmetic edge cases.
         Treat any regression in solvency, membership, nullifier derivation, or ticket-range checks as high severity.
+        Require negative tests for rejected paths (bad root, insufficient solvency, invalid signature/state transitions).
     - path: "scripts/bench/**/*.sh"
       instructions: |
         Verify reproducibility guardrails.
         Benchmark outputs must remain self-describing with metadata columns:
         prover_engine, profile, target, run_tag, machine.
+        Flag any possibility of mixing engine/profile families without explicit caveat.
+    - path: "scripts/bench/**/*.py"
+      instructions: |
+        Treat benchmark math as production-critical. Flag divide-by-zero masking, schema drift, and silent fallback behavior.
     - path: "scripts/ci/**/*"
       instructions: |
         Check that unsupported paths are explicitly validated as failures.
         Preflight must fail hard on matrix drift.
+    - path: "scripts/interop/**/*.py"
+      instructions: |
+        Enforce deterministic parsing and clear failures (timeout, malformed output, schema mismatch).
+        Flag brittle argument ordering or missing executable-signature comments.
+    - path: "README.md"
+      instructions: |
+        Prioritize factual consistency with code/results. Ignore pure markdown style nitpicks unless they hide technical meaning.
   auto_review:
     enabled: true
     auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 0
     drafts: false
     base_branches:
       - "main"
+  pre_merge_checks:
+    title:
+      mode: "warning"
+      requirements: >
+        Use a concrete scope (circuit/bench/interop/ci/docs) and summarize behavioral impact.
+    description:
+      mode: "warning"
+    issue_assessment:
+      mode: "warning"
+    custom_checks:
+      - name: "Circuit Safety Gate"
+        mode: "error"
+        instructions: >
+          For changes under src/**/*.cairo, fail if membership/nullifier/share/solvency/range constraints
+          are modified without corresponding negative tests or if witness/public boundaries become weaker.
+      - name: "Benchmark Integrity Gate"
+        mode: "error"
+        instructions: >
+          For changes under scripts/bench/** or scripts/results contracts, fail on schema drift, mixed
+          engine/profile comparisons without caveats, or non-reproducible defaults.
+      - name: "CI Matrix Contract Gate"
+        mode: "error"
+        instructions: >
+          For changes under scripts/ci/**, compat_matrix*.json, or workflow files, fail if unsupported
+          paths are no longer explicitly validated as failing or if matrix version checks are weakened.
+      - name: "Docs Consistency Gate"
+        mode: "warning"
+        instructions: >
+          For README/docs changes, flag factual mismatches against committed scripts/results; do not
+          block on markdown formatting-only issues.
+  tools:
+    opengrep:
+      enabled: true
+    trufflehog:
+      enabled: true
 
 chat:
   auto_reply: true

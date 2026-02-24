@@ -101,6 +101,26 @@ Notes:
 - Inputs for v2 live under `scripts/bench_inputs/v2_kernel`.
 - In this repo's current environment, `v2_kernel` is not executable via raw `cairo-prove` directly; use this `scarb prove/verify` path for the delta runs.
 
+## V2-kernel depth sweep only
+
+To benchmark only `v2_kernel` across depths:
+
+```bash
+BENCH_ITERATIONS=10 ./scripts/bench/run_v2_kernel_depths.sh
+```
+
+Outputs are written to:
+- `scripts/results/v2_kernel_only_<ts>/runs.csv`
+- `scripts/results/v2_kernel_only_<ts>/summary.csv`
+- `scripts/results/v2_kernel_only_<ts>/bench_meta.json`
+
+If `scripts/results/main_baseline/bench_summary.csv` exists, the script also emits:
+- `scripts/results/v2_kernel_only_<ts>/v1_vs_v2_from_baseline.csv`
+
+This gives a one-file depth-by-depth V1-vs-V2 table using the committed baseline family.
+If baseline/current `prover_engine` or `profile` differ, delta generation is skipped unless
+`ALLOW_MIXED_BASELINE=1` is set.
+
 ## Combined report guardrail
 
 If you need one shareable table pack that mixes families, use:
