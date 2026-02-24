@@ -165,6 +165,7 @@ notes:
 ## benchmark commands
 
 baseline depths:
+
 ```bash
 # defaults if unset:
 # BENCH_DEPTHS="8 16 20 32", BENCH_ITERATIONS=5
@@ -173,6 +174,7 @@ BENCH_DEPTHS="8 16 20 32" BENCH_ITERATIONS=10 ./scripts/bench/run_depths.sh
 ```
 
 v1 vs v2-kernel:
+
 ```bash
 # defaults if unset:
 # BENCH_DEPTHS="8 16 20 32", BENCH_ITERATIONS=5, SCARB_PROFILE=release
@@ -181,6 +183,7 @@ BENCH_ITERATIONS=10 ./scripts/bench/run_v1_v2_delta.sh
 ```
 
 v2-kernel depths only:
+
 ```bash
 # defaults if unset:
 # BENCH_DEPTHS="8 16 20 32", BENCH_ITERATIONS=5, SCARB_PROFILE=release
@@ -189,6 +192,7 @@ BENCH_ITERATIONS=10 ./scripts/bench/run_v2_kernel_depths.sh
 ```
 
 combined report (with guardrail):
+
 ```bash
 # replace <ts> with the unix timestamp suffix from your delta run dir
 # ex: scripts/results/v1_v2_delta_1771699999/ -> <ts> is 1771699999
