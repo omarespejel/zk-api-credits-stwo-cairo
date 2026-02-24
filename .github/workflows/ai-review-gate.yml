@@ -39,10 +39,17 @@ jobs:
             });
 
             const runs = checksResp.data.check_runs || [];
-            const findByName = (name) => runs.find((r) => r.name === name);
+            const findLatestByName = (name) =>
+              runs
+                .filter((r) => r.name === name)
+                .sort(
+                  (a, b) =>
+                    new Date(b.completed_at || b.started_at || 0) -
+                    new Date(a.completed_at || a.started_at || 0)
+                )[0];
 
-            const codeRabbitRun = findByName(codeRabbitCheck);
-            const greptileRun = findByName(greptileCheck);
+            const codeRabbitRun = findLatestByName(codeRabbitCheck);
+            const greptileRun = findLatestByName(greptileCheck);
 
             function assertCheck(check, label) {
               if (!check) {
