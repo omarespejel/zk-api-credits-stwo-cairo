@@ -121,6 +121,8 @@ def main() -> int:
         run([args.scarb, "--release", "build"], cwd=repo)
 
     local_state = parse_int(steps[0]["refund_commitment_prev"])
+    if local_state == 0:
+        raise ValueError("chain fixture has zero initial refund_commitment_prev; likely invalid")
     runs = []
 
     for step in steps:
