@@ -272,6 +272,9 @@ def main() -> int:
         "steps_requested": args.steps,
         "steps_executed": len(runs),
         "final_state": to_hex(local_state),
+        "stale_fixture_detected": stale_fixture_stale,
+        "branch_fixture_stale_detected": branch_fixture_stale,
+        # Backward-compatible aliases for existing consumers.
         "stale_replay_rejected": stale_fixture_stale,
         "branch_attempt_rejected": branch_fixture_stale,
         "runs": runs,
