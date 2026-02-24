@@ -140,6 +140,28 @@ scarb --release verify --proof-file <proof-file-from-line-above>
 python3 scripts/v2_sequential_demo.py --depth 8 --steps 3
 ```
 
+## cross-repo interop check
+
+there is now a shared-vector alignment check against Vivian's Cairo RLN repo.
+it verifies both implementations produce identical `nullifier` and `y` for the same input vector.
+
+default vector:
+- `scripts/interop/vectors/shared_vector_01.json`
+
+run it:
+
+```bash
+python3 scripts/interop/check_alignment.py \
+  --our-repo . \
+  --vivian-repo ../cairo-circuits \
+  --scarb-our scarb \
+  --scarb-vivian ~/.asdf/installs/scarb/2.17.0-rc.1/bin/scarb
+```
+
+notes:
+- this check computes a shared root first using `derive_rate_commitment_root`.
+- it then executes both repos with aligned inputs and enforces output equality on `nullifier` and `y`.
+
 ## benchmark commands
 
 baseline depths:
@@ -190,6 +212,13 @@ ci-equivalent preflight:
 ```bash
 python3 scripts/ci/preflight.py --matrix compat_matrix_ci.json
 ```
+
+## ai review policy
+
+- CodeRabbit + Greptile are advisory review bots in this repo.
+- Greptile `fixWithAI` is enabled for suggestion quality, but it does **not** auto-commit code.
+- all code changes still go through PR review + required checks before merge.
+- bot noise is limited with `excludeAuthors` in `greptile.json` (dependency/update bots).
 
 ## caveats (current)
 
