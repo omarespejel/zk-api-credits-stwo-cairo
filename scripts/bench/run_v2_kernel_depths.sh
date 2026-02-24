@@ -12,15 +12,17 @@ RUN_TAG="run$(date +%s)"
 PROVER_ENGINE="scarb-prove"
 TARGET_NAME="zk_api_credits_v2_kernel"
 MACHINE_CACHE="${PROJECT_ROOT}/.bench_machine_cache"
-if [[ -f "${MACHINE_CACHE}" ]]; then
-  MACHINE=$(cat "${MACHINE_CACHE}")
+SCARB_VERSION="$(scarb --version 2>/dev/null || echo unknown)"
+CACHE_KEY="${SCARB_VERSION}"
+if [[ -f "${MACHINE_CACHE}" ]] && head -1 "${MACHINE_CACHE}" | grep -qF "${CACHE_KEY}"; then
+  MACHINE=$(tail -1 "${MACHINE_CACHE}")
 else
   MACHINE=$(python3 - <<'PY'
 import platform
 print(f"{platform.system()}-{platform.machine()}")
 PY
 )
-  echo "${MACHINE}" > "${MACHINE_CACHE}"
+  printf '%s\n%s\n' "${CACHE_KEY}" "${MACHINE}" > "${MACHINE_CACHE}"
 fi
 mkdir -p "${RESULTS_DIR}"
 

@@ -206,5 +206,40 @@ class BenchSchemaContractTests(unittest.TestCase):
             self.assertEqual(rows[0]["prove_delta_pct"].lower(), "nan")
 
 
+    def test_build_delta_rejects_mismatched_depths(self):
+        """Delta builder fails when baseline and v2 have different depth sets."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            baseline = tmp_path / "baseline.csv"
+            v2 = tmp_path / "v2.csv"
+            out = tmp_path / "delta.csv"
+
+            write_csv(
+                baseline,
+                ["run_tag", "prover_engine", "profile", "target", "machine",
+                 "depth", "samples", "prove_p50_ms", "verify_p50_ms", "size_p50_bytes"],
+                [["r1", "cairo-prove", "release", "t", "m", "8", "1", "100", "10", "200"]],
+            )
+            write_csv(
+                v2,
+                ["run_tag", "prover_engine", "profile", "target", "machine",
+                 "depth", "samples", "prove_p50_ms", "verify_p50_ms", "size_p50_bytes"],
+                [["r2", "scarb-prove", "release", "t", "m", "16", "1", "150", "15", "220"]],
+            )
+
+            argv_backup = list(sys.argv)
+            try:
+                sys.argv = [
+                    "build_v1_v2_delta.py",
+                    "--baseline-summary", str(baseline),
+                    "--v2-summary", str(v2),
+                    "--out", str(out),
+                ]
+                with self.assertRaises(RuntimeError):
+                    DELTA_MODULE.main()
+            finally:
+                sys.argv = argv_backup
+
+
 if __name__ == "__main__":
     unittest.main()

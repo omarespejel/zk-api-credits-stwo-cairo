@@ -39,9 +39,26 @@ def main() -> int:
     validate_summary_headers(baseline_rows, f"baseline summary ({baseline_path})")
     validate_summary_headers(v2_rows, f"v2 summary ({v2_path})")
 
-    baseline_by_depth = {int(r["depth"]): r for r in baseline_rows}
-    v2_by_depth = {int(r["depth"]): r for r in v2_rows}
-    shared_depths = sorted(set(baseline_by_depth) & set(v2_by_depth))
+    def _index_by_depth(rows: list[dict[str, str]], label: str) -> dict[int, dict[str, str]]:
+        """Build depth->row index, raising on duplicates."""
+        by_depth: dict[int, dict[str, str]] = {}
+        for row in rows:
+            depth = int(row["depth"])
+            if depth in by_depth:
+                raise RuntimeError(f"{label} has duplicate depth={depth}")
+            by_depth[depth] = row
+        return by_depth
+
+    baseline_by_depth = _index_by_depth(baseline_rows, "baseline")
+    v2_by_depth = _index_by_depth(v2_rows, "v2")
+    missing_in_v2 = sorted(set(baseline_by_depth) - set(v2_by_depth))
+    missing_in_baseline = sorted(set(v2_by_depth) - set(baseline_by_depth))
+    if missing_in_v2 or missing_in_baseline:
+        raise RuntimeError(
+            f"depth mismatch: missing in v2={missing_in_v2}, "
+            f"missing in baseline={missing_in_baseline}"
+        )
+    shared_depths = sorted(baseline_by_depth)
 
     def delta_or_nan(metric: str, depth: int, baseline_value: float, v2_value: float) -> float:
         """Return percentage change, or NaN with a warning when baseline is zero."""
