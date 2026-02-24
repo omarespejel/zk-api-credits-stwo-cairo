@@ -2,9 +2,14 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
-from schema_contract import read_rows, validate_summary_headers
+if __package__:
+    from .schema_contract import read_rows, validate_summary_headers
+else:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from scripts.bench.schema_contract import read_rows, validate_summary_headers
 
 
 def parse_args() -> argparse.Namespace:
