@@ -89,6 +89,10 @@ def main() -> int:
             )
         return ((v2_value - baseline_value) / baseline_value) * 100
 
+    def csv_delta_value(value: float) -> str | float:
+        """Return canonical CSV delta representation."""
+        return "NaN" if math.isnan(value) else round(value, 2)
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", newline="") as f:
         w = csv.writer(f)
@@ -122,13 +126,13 @@ def main() -> int:
                 depth,
                 int(v1_prove),
                 int(v2_prove),
-                round(prove_delta, 2),
+                csv_delta_value(prove_delta),
                 int(v1_verify),
                 int(v2_verify),
-                round(verify_delta, 2),
+                csv_delta_value(verify_delta),
                 int(v1_size),
                 int(v2_size),
-                round(size_delta, 2),
+                csv_delta_value(size_delta),
             ])
 
     print(f"wrote {out_path}")
