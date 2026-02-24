@@ -14,6 +14,7 @@ SPEC.loader.exec_module(MODULE)
 
 check_alignment = MODULE.check_alignment
 parse_program_output = MODULE.parse_program_output
+resolve_vivian_project_root = MODULE.resolve_vivian_project_root
 run = MODULE.run
 run_vivian_main = MODULE.run_vivian_main
 to_args = MODULE.to_args
@@ -56,6 +57,7 @@ Saving output to: target/execute/foo
             {"nullifier": 7, "x": 10, "y": 20, "root": 30},
             {"x": 10, "scope": 5, "y": 20, "root": 30, "nullifier": 7},
             30,
+            30,
         )
 
     def test_check_alignment_mismatch(self):
@@ -63,6 +65,7 @@ Saving output to: target/execute/foo
             check_alignment(
                 {"nullifier": 7, "x": 10, "y": 20, "root": 30},
                 {"x": 10, "scope": 5, "y": 999, "root": 30, "nullifier": 7},
+                30,
                 30,
             )
 
@@ -167,13 +170,25 @@ Saving output to: target/execute/foo
             "ticket_index": 3,
             "x": 12345,
             "scope": 77,
+            "vivian_merkle_proof_length": 2,
+            "vivian_merkle_proof_indices": [0] * 10,
+            "vivian_merkle_proof_siblings": [0] * 10,
+            "vivian_expected_root": 999,
         }
         fake_output = "Program output:\n1\n2\n3\n4\n5\nSaving output to: target/execute/foo\n"
         with patch.object(MODULE, "run", return_value=fake_output) as run_mock:
-            out = run_vivian_main(Path("."), "scarb", vector, 999)
+            out = run_vivian_main(Path("."), "scarb", vector)
             cmd = run_mock.call_args.args[0]
             self.assertEqual(cmd[:3], ["scarb", "--release", "execute"])
             self.assertEqual(out["nullifier"], 5)
+
+    def test_resolve_vivian_project_root_prefers_rln_subdir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            (repo / "rln").mkdir()
+            (repo / "rln" / "Scarb.toml").write_text("[package]\nname='x'\n")
+            resolved = resolve_vivian_project_root(repo)
+            self.assertEqual(resolved, repo / "rln")
 
     def test_run_timeout_raises_runtime_error(self):
         with patch.object(

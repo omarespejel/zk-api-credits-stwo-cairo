@@ -1,12 +1,27 @@
 {
   "name": "shared_vector_01",
-  "identity_secret": 42,
+  "identity_secret": 1,
   "scope": 32,
-  "ticket_index": 3,
-  "x": 12345,
-  "user_message_limit": 32,
+  "ticket_index": 1,
+  "x": 43,
+  "user_message_limit": 3,
   "deposit_low": 1000,
   "deposit_high": 0,
   "class_price_low": 100,
-  "class_price_high": 0
+  "class_price_high": 0,
+  "vivian_merkle_proof_length": 2,
+  "vivian_merkle_proof_indices": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  "vivian_merkle_proof_siblings": [
+    2,
+    984631471205578712614553929895140960202851439944671757216493909002271097326,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "vivian_expected_root": 1304906950737621371309303808943812194997635679334430880908474303267134943875
 }
