@@ -143,6 +143,7 @@ class BenchSchemaContractTests(unittest.TestCase):
             self.assertEqual(rows[0]["depth"], "8")
             self.assertEqual(rows[0]["v1_prove_p50_ms"], "100")
             self.assertEqual(rows[0]["v2_prove_p50_ms"], "150")
+            self.assertEqual(rows[0]["prove_delta_pct"], "50.0")
 
     def test_build_delta_cli_zero_baseline_emits_nan_delta(self):
         """Zero baseline prove value produces NaN delta instead of crashing."""
@@ -204,7 +205,8 @@ class BenchSchemaContractTests(unittest.TestCase):
             with out.open() as f:
                 rows = list(csv.DictReader(f))
             self.assertEqual(rows[0]["prove_delta_pct"].lower(), "nan")
-
+            self.assertNotEqual(rows[0]["verify_delta_pct"].lower(), "nan")
+            self.assertNotEqual(rows[0]["size_delta_pct"].lower(), "nan")
 
     def test_build_delta_rejects_mismatched_depths(self):
         """Delta builder fails when baseline and v2 have different depth sets."""

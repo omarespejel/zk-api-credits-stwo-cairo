@@ -110,7 +110,8 @@ profile = sys.argv[5]
 target = sys.argv[6]
 machine = sys.argv[7]
 
-rows = list(csv.DictReader(raw_path.open()))
+with raw_path.open() as fh:
+    rows = list(csv.DictReader(fh))
 agg = defaultdict(lambda: {"prove": [], "verify": [], "size": []})
 
 for row in rows:
@@ -164,6 +165,22 @@ with summary_path.open("w", newline="") as f:
 PY
 
 if [[ -f "${BASELINE_SUMMARY}" ]]; then
+  baseline_engine=$(python3 -c "
+import csv, sys
+with open('${BASELINE_SUMMARY}') as f:
+    rows = list(csv.DictReader(f))
+print(rows[0].get('prover_engine','') if rows else '')
+")
+  baseline_profile=$(python3 -c "
+import csv, sys
+with open('${BASELINE_SUMMARY}') as f:
+    rows = list(csv.DictReader(f))
+print(rows[0].get('profile','') if rows else '')
+")
+  if [[ "${baseline_engine}" != "${PROVER_ENGINE}" || "${baseline_profile}" != "${SCARB_PROFILE}" ]]; then
+    echo "WARNING: baseline engine/profile (${baseline_engine}/${baseline_profile}) differs from" \
+         "current run (${PROVER_ENGINE}/${SCARB_PROFILE}); delta results may not be comparable." >&2
+  fi
   python3 -m scripts.bench.build_v1_v2_delta \
     --baseline-summary "${BASELINE_SUMMARY}" \
     --v2-summary "${SUMMARY}" \
