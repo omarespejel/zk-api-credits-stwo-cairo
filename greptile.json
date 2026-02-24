@@ -8,7 +8,7 @@
   ],
   "triggerOnUpdates": true,
   "fileChangeLimit": 250,
-  "instructions": "Prioritize correctness and production risk over style. Focus on circuit soundness, witness/public boundary mistakes, Merkle membership logic, nullifier/share derivation, solvency/range constraints, and reproducibility regressions. If no blocking issues are found, still leave 2-4 concrete non-blocking suggestions (info/style) on changed lines with specific remediation.",
+  "instructions": "Production-grade review only: prioritize correctness, security, and reproducibility over style. Focus on circuit soundness, witness/public boundary mistakes, Merkle membership logic, nullifier/share derivation, solvency/range constraints, state-transition integrity, benchmark schema integrity, and CI matrix safety. Treat silent fallback behavior, ambiguous parsing, and schema drift as high risk. Avoid markdown formatting-only nitpicks unless they hide technical meaning.",
   "ignorePatterns": "target/**\nscripts/results/**\n**/*_proof.json\n**/*.proof.json\n**/__pycache__/**",
   "updateExistingSummaryComment": true,
   "shouldUpdateDescription": false,
@@ -31,6 +31,14 @@
         ]
       },
       {
+        "rule": "State-transition logic must reject stale or mismatched commitments/signatures and include negative-path test coverage.",
+        "scope": [
+          "src/**/*.cairo",
+          "scripts/v2_sequential_demo.py",
+          "scripts/tests/test_v2_sequential_demo.py"
+        ]
+      },
+      {
         "rule": "Benchmark scripts must emit self-describing metadata to avoid mixing prover engines or profiles by accident.",
         "scope": [
           "scripts/bench/**/*.sh",
@@ -38,9 +46,24 @@
         ]
       },
       {
+        "rule": "CI/preflight changes must fail hard on matrix/schema drift and keep explicit checks for known unsupported paths.",
+        "scope": [
+          "scripts/ci/**/*.py",
+          ".github/workflows/*.yml",
+          "compat_matrix*.json"
+        ]
+      },
+      {
         "rule": "Interop scripts must fail loudly on parse/timeout/schema mismatches and include deterministic test coverage for failure modes.",
         "scope": [
           "scripts/interop/**/*.py"
+        ]
+      },
+      {
+        "rule": "For README/docs changes, prioritize factual consistency with committed scripts/results; de-prioritize markdown formatting-only comments.",
+        "scope": [
+          "README.md",
+          "scripts/bench/README.md"
         ]
       }
     ],
@@ -52,6 +75,14 @@
       {
         "path": "scripts/bench/README.md",
         "description": "Benchmark methodology and reproducibility contract."
+      },
+      {
+        "path": "compat_matrix.json",
+        "description": "Support matrix contract for local preflight."
+      },
+      {
+        "path": "compat_matrix_ci.json",
+        "description": "Support matrix contract for CI preflight."
       }
     ]
   }
