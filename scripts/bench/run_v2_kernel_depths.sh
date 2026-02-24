@@ -11,11 +11,17 @@ SCARB_PROFILE="${SCARB_PROFILE:-release}"
 RUN_TAG="run$(date +%s)"
 PROVER_ENGINE="scarb-prove"
 TARGET_NAME="zk_api_credits_v2_kernel"
-MACHINE=$(python3 - <<'PY'
+MACHINE_CACHE="${PROJECT_ROOT}/.bench_machine_cache"
+if [[ -f "${MACHINE_CACHE}" ]]; then
+  MACHINE=$(cat "${MACHINE_CACHE}")
+else
+  MACHINE=$(python3 - <<'PY'
 import platform
 print(f"{platform.system()}-{platform.machine()}")
 PY
 )
+  echo "${MACHINE}" > "${MACHINE_CACHE}"
+fi
 mkdir -p "${RESULTS_DIR}"
 
 if [[ "${BENCH_ITERATIONS}" -lt 1 ]]; then

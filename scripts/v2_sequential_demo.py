@@ -1,11 +1,20 @@
 #!/usr/bin/env python3
+"""Sequential V2 kernel state demo.
+
+Chain fixture schema: each step must have step, ticket_index, scope,
+refund_commitment_prev, refund_amount, refund_commitment_next_expected,
+server_pubkey, signature_r, signature_s. Genesis step (step=0) must have
+refund_commitment_prev equal to GENESIS_REFUND_COMMITMENT_PREV.
+"""
 import argparse
 import json
+import os
 import subprocess
 import time
 from pathlib import Path
 
 V2_FIXED_PREFIX_LEN = 11
+GENESIS_REFUND_COMMITMENT_PREV = 0x7B  # expected refund_commitment_prev for step=0
 V2_PROOF_LEN_IDX = 10
 V2_TAIL_LEN = 7
 V2_REMASK_NONCE_OFFSET = 3  # relative offset within the tail (0 = refund_commitment_prev)
@@ -27,9 +36,20 @@ def to_args(values: list[int]) -> str:
     return ",".join(to_hex(v) for v in values)
 
 
-SUBPROCESS_TIMEOUT_S = 600
+DEFAULT_SUBPROCESS_TIMEOUT_S = 600
+ENV_TIMEOUT = "V2_SEQUENTIAL_DEMO_TIMEOUT_S"
 
-def run(cmd: list[str], cwd: Path) -> tuple[str, int]:
+
+def _timeout_seconds(args: argparse.Namespace) -> int:
+    if getattr(args, "timeout", None) is not None:
+        return args.timeout
+    raw = os.environ.get(ENV_TIMEOUT)
+    if raw:
+        return int(raw)
+    return DEFAULT_SUBPROCESS_TIMEOUT_S
+
+
+def run(cmd: list[str], cwd: Path, timeout_s: int = DEFAULT_SUBPROCESS_TIMEOUT_S) -> tuple[str, int]:
     start = time.monotonic()
     try:
         proc = subprocess.run(
@@ -39,13 +59,13 @@ def run(cmd: list[str], cwd: Path) -> tuple[str, int]:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             check=False,
-            timeout=SUBPROCESS_TIMEOUT_S,
+            timeout=timeout_s,
         )
     except subprocess.TimeoutExpired as exc:
         elapsed_ms = int((time.monotonic() - start) * 1000)
         partial = (exc.output or "") if exc.output else ""
         raise RuntimeError(
-            f"command timed out after {SUBPROCESS_TIMEOUT_S}s ({elapsed_ms}ms elapsed): "
+            f"command timed out after {timeout_s}s ({elapsed_ms}ms elapsed): "
             f"{' '.join(cmd)}\n{partial}"
         ) from exc
     elapsed_ms = int((time.monotonic() - start) * 1000)
@@ -106,6 +126,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--skip-verify", action="store_true")
     p.add_argument("--chain-file", default="scripts/v2_fixtures/sequential_chain.json")
     p.add_argument("--scarb", default="scarb")
+    p.add_argument(
+        "--timeout",
+        type=int,
+        default=None,
+        metavar="SECONDS",
+        help=f"subprocess timeout (default: {DEFAULT_SUBPROCESS_TIMEOUT_S} or {ENV_TIMEOUT})",
+    )
     return p.parse_args()
 
 
@@ -130,16 +157,36 @@ def main() -> int:
     prefix, remask_nonce = extract_prefix_and_remask(base_args)
     steps = chain[: args.steps]
 
+    timeout_s = _timeout_seconds(args)
     if not args.skip_build:
-        run([args.scarb, "--release", "build"], cwd=repo)
+        run([args.scarb, "--release", "build"], cwd=repo, timeout_s=timeout_s)
 
+    REQUIRED_STEP_KEYS = {
+        "step",
+        "ticket_index",
+        "scope",
+        "refund_commitment_prev",
+        "refund_amount",
+        "refund_commitment_next_expected",
+        "server_pubkey",
+        "signature_r",
+        "signature_s",
+    }
     for i, s in enumerate(steps):
-        if "step" not in s:
-            raise ValueError(f"chain entry {i} is missing required 'step' field")
+        missing = REQUIRED_STEP_KEYS - s.keys()
+        if missing:
+            raise ValueError(
+                f"chain entry {i} is missing required fields: {', '.join(sorted(missing))}"
+            )
 
     local_state = parse_int(steps[0]["refund_commitment_prev"])
     if local_state == 0:
         raise ValueError("chain fixture has zero initial refund_commitment_prev; likely invalid")
+    if local_state != GENESIS_REFUND_COMMITMENT_PREV:
+        raise ValueError(
+            f"chain fixture genesis refund_commitment_prev={to_hex(local_state)} "
+            f"does not match expected {to_hex(GENESIS_REFUND_COMMITMENT_PREV)}"
+        )
     if steps[0]["step"] != 0:
         raise ValueError(f"chain fixture starts at step={steps[0]['step']}; expected genesis step=0")
     runs = []
@@ -166,6 +213,7 @@ def main() -> int:
                 to_args(v2_args),
             ],
             cwd=repo,
+            timeout_s=timeout_s,
         )
         proof_path = parse_proof_path(prove_out)
 
@@ -174,6 +222,7 @@ def main() -> int:
             _, verify_ms = run(
                 [args.scarb, "--release", "verify", "--proof-file", proof_path],
                 cwd=repo,
+                timeout_s=timeout_s,
             )
 
         local_state = nxt

@@ -6,6 +6,7 @@
 /scripts/bench/__pycache__/
 /scripts/interop/**/__pycache__/
 /result_cache/
+.bench_machine_cache
 proof_test.json
 FORUM_POST.md
 TECHNICAL_POST.md
