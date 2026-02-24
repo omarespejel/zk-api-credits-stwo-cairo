@@ -8,9 +8,9 @@ from pathlib import Path
 V2_FIXED_PREFIX_LEN = 11
 V2_PROOF_LEN_IDX = 10
 V2_TAIL_LEN = 7
-V2_REMASK_NONCE_OFFSET = 3
-V2_TICKET_INDEX_IDX = 1
-V2_SCOPE_IDX = 3
+V2_REMASK_NONCE_OFFSET = 3  # relative offset within the tail (0 = refund_commitment_prev)
+V2_TICKET_INDEX_IDX = 1    # absolute index within the fixed prefix
+V2_SCOPE_IDX = 3            # absolute index within the fixed prefix (coincidentally == REMASK_NONCE_OFFSET)
 
 
 def parse_int(value: str | int) -> int:
@@ -31,15 +31,23 @@ SUBPROCESS_TIMEOUT_S = 600
 
 def run(cmd: list[str], cwd: Path) -> tuple[str, int]:
     start = time.monotonic()
-    proc = subprocess.run(
-        cmd,
-        cwd=str(cwd),
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        check=False,
-        timeout=SUBPROCESS_TIMEOUT_S,
-    )
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(cwd),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+            timeout=SUBPROCESS_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired as exc:
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+        partial = (exc.output or "") if exc.output else ""
+        raise RuntimeError(
+            f"command timed out after {SUBPROCESS_TIMEOUT_S}s ({elapsed_ms}ms elapsed): "
+            f"{' '.join(cmd)}\n{partial}"
+        ) from exc
     elapsed_ms = int((time.monotonic() - start) * 1000)
     if proc.returncode != 0:
         raise RuntimeError(f"command failed ({proc.returncode}): {' '.join(cmd)}\n{proc.stdout}")
@@ -125,12 +133,15 @@ def main() -> int:
     if not args.skip_build:
         run([args.scarb, "--release", "build"], cwd=repo)
 
+    for i, s in enumerate(steps):
+        if "step" not in s:
+            raise ValueError(f"chain entry {i} is missing required 'step' field")
+
     local_state = parse_int(steps[0]["refund_commitment_prev"])
     if local_state == 0:
         raise ValueError("chain fixture has zero initial refund_commitment_prev; likely invalid")
-    first_step_idx = steps[0].get("step", 0)
-    if first_step_idx != 0:
-        raise ValueError(f"chain fixture starts at step={first_step_idx}; expected genesis step=0")
+    if steps[0]["step"] != 0:
+        raise ValueError(f"chain fixture starts at step={steps[0]['step']}; expected genesis step=0")
     runs = []
 
     for step in steps:
@@ -177,6 +188,9 @@ def main() -> int:
             }
         )
 
+    # NOTE: The following are Python-level state comparisons only.
+    # They verify that fixture refund_commitment_prev no longer matches the
+    # advanced local state; they do NOT invoke the circuit (scarb prove).
     stale = chain[0]
     stale_prev = parse_int(stale["refund_commitment_prev"])
     stale_rejected = stale_prev != local_state
