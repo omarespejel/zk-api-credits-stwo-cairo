@@ -4,22 +4,27 @@ import json
 from pathlib import Path
 
 
+# refund_amount is 0x1 (not 0x7 from earlier v1 fixtures) so that sequential
+# chain steps each advance the commitment by a minimal unit, keeping fixture
+# generation simple and signatures bound to the standardised 4-tuple.
 DEFAULTS = {
     "refund_commitment_prev": "0x7b",
-    "refund_amount": "0x7",
+    "refund_amount": "0x1",
+    "refund_commitment_next_expected": "0x3639abd57ba0779f4fdd845168e3815a72834c875ee135981660ebedaa68770",
     "remask_nonce": "0x9",
-    "refund_ticket_hash": "0x2d6479c0758efbb5aa07d35ed5454d728637fceab7ba544d3ea95403a5630a8",
-    "server_pubkey": "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
-    "signature_r": "0x6ff7b413a8457ef90f326b5280600a4473fef49b5b1dcdfcd7f42ca7aa59c69",
-    "signature_s": "0x23a9747ed71abc5cb956c0df44ee8638b65b3e9407deade65de62247b8fd77",
+    "server_pubkey": "0x3fcb8c6e0c6062cac02df9ff0f3775b2263874a4cbf42643fc26713e5a8ceb6",
+    "signature_r": "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+    "signature_s": "0x67075b978a9f74ca9d515e59bef04b9db63216b02f159a1bd77ec0cb88b0e6",
 }
 
 
 def parse_depths(raw: str) -> list[int]:
+    """Parse a space-separated depth string into a list of ints."""
     return [int(item) for item in raw.split() if item.strip()]
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments for the v2 kernel args generator."""
     p = argparse.ArgumentParser(description="Generate v2-kernel args from depth fixtures.")
     p.add_argument("--base-dir", default="scripts/bench_inputs")
     p.add_argument("--out-dir", default="scripts/bench_inputs/v2_kernel")
@@ -31,6 +36,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """Generate v2_kernel arg JSON files by appending refund tail to each depth fixture."""
     args = parse_args()
     base_dir = Path(args.base_dir)
     out_dir = Path(args.out_dir)
@@ -55,8 +61,8 @@ def main() -> int:
             *data,
             extras["refund_commitment_prev"],
             extras["refund_amount"],
+            extras["refund_commitment_next_expected"],
             extras["remask_nonce"],
-            extras["refund_ticket_hash"],
             extras["server_pubkey"],
             extras["signature_r"],
             extras["signature_s"],

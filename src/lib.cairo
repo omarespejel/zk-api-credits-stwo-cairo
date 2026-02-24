@@ -18,6 +18,10 @@ fn hash_poseidon_triplet(a: felt252, b: felt252, c: felt252) -> felt252 {
     poseidon_hash_span([a, b, c].span())
 }
 
+fn hash_poseidon_quad(a: felt252, b: felt252, c: felt252, d: felt252) -> felt252 {
+    poseidon_hash_span([a, b, c, d].span())
+}
+
 fn assert_u256_ordering(ticket_index: felt252, deposit: u256, class_price: u256) {
     let ticket_index_u256: u256 = ticket_index.into();
     let required_deposit = (ticket_index_u256 + 1) * class_price;
@@ -32,6 +36,15 @@ fn assert_ticket_in_range(ticket_index: felt252, user_message_limit: u32) {
 fn build_rate_commitment(identity_secret: felt252, user_message_limit: u32) -> felt252 {
     let identity_commitment = hash_poseidon_single(identity_secret);
     hash_poseidon_pair(identity_commitment, user_message_limit.into())
+}
+
+/// Builds the signed refund ticket hash in canonical order:
+/// (refund_commitment_prev, refund_amount, ticket_index, scope).
+/// Order is part of the signature domain; changing it invalidates signatures.
+fn build_refund_ticket_hash(
+    refund_commitment_prev: felt252, refund_amount: felt252, ticket_index: felt252, scope: felt252,
+) -> felt252 {
+    hash_poseidon_quad(refund_commitment_prev, refund_amount, ticket_index, scope)
 }
 
 #[executable]
@@ -76,8 +89,8 @@ fn v2_kernel(
     merkle_proof: Array<felt252>,
     refund_commitment_prev: felt252,
     refund_amount: felt252,
+    refund_commitment_next_expected: felt252,
     remask_nonce: felt252,
-    refund_ticket_hash: felt252,
     server_pubkey: felt252,
     signature_r: felt252,
     signature_s: felt252,
@@ -94,12 +107,25 @@ fn v2_kernel(
     let y = identity_secret + a1 * x;
     let nullifier = hash_poseidon_single(a1);
 
+    let refund_ticket_hash_expected = build_refund_ticket_hash(
+        refund_commitment_prev, refund_amount, ticket_index, scope,
+    );
     let signature_ok = check_ecdsa_signature(
-        refund_ticket_hash, server_pubkey, signature_r, signature_s,
+        refund_ticket_hash_expected, server_pubkey, signature_r, signature_s,
     );
     assert!(signature_ok, "INVALID_REFUND_SIGNATURE");
 
+    // Transition commitment is derived from (prev, amount) via Pedersen.
+    // Security model:
+    // - signature binds (prev, amount, ticket_index, scope) via Poseidon; and
+    // - REFUND_STATE_MISMATCH binds next_expected to pedersen(prev, amount).
+    // This relies on standard collision resistance assumptions for both hashes.
+    // Migrating signatures to include `refund_commitment_updated` directly would
+    // be a protocol-version change requiring fixture/signature regeneration.
     let refund_commitment_updated = pedersen(refund_commitment_prev, refund_amount);
+    assert!(
+        refund_commitment_updated == refund_commitment_next_expected, "REFUND_STATE_MISMATCH",
+    );
     let refund_commitment_remasked = pedersen(refund_commitment_updated, remask_nonce);
 
     (
@@ -123,9 +149,23 @@ fn derive_rate_commitment_root(
     process_proof::<PoseidonCHasher>(merkle_proof.span(), rate_commitment)
 }
 
+#[executable]
+fn derive_refund_transition(
+    refund_commitment_prev: felt252, refund_amount: felt252, ticket_index: felt252, scope: felt252,
+) -> (felt252, felt252) {
+    // Helper for off-chain tooling: returns (hash-to-sign, next-state commitment).
+    let refund_ticket_hash = build_refund_ticket_hash(
+        refund_commitment_prev, refund_amount, ticket_index, scope,
+    );
+    let refund_commitment_next = pedersen(refund_commitment_prev, refund_amount);
+    (refund_ticket_hash, refund_commitment_next)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{hash_poseidon_pair, hash_poseidon_single, hash_poseidon_triplet, main, v2_kernel};
+    use super::{
+        hash_poseidon_pair, hash_poseidon_single, hash_poseidon_triplet, main, v2_kernel,
+    };
     use core::poseidon::poseidon_hash_span;
     use core::pedersen::pedersen;
     use openzeppelin_merkle_tree::hashes::PoseidonCHasher;
@@ -337,16 +377,15 @@ mod tests {
         let proof: Array<felt252> = array![];
         let root = rate_commitment();
         let refund_commitment_prev = 123;
-        let refund_amount = 7;
+        let refund_amount = 1;
+        let refund_commitment_next_expected =
+            0x3639abd57ba0779f4fdd845168e3815a72834c875ee135981660ebedaa68770;
         let remask_nonce = 9;
-
-        let refund_ticket_hash =
-            0x2d6479c0758efbb5aa07d35ed5454d728637fceab7ba544d3ea95403a5630a8;
         let server_pubkey =
-            0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca;
+            0x3fcb8c6e0c6062cac02df9ff0f3775b2263874a4cbf42643fc26713e5a8ceb6;
         let signature_r =
-            0x6ff7b413a8457ef90f326b5280600a4473fef49b5b1dcdfcd7f42ca7aa59c69;
-        let signature_s = 0x23a9747ed71abc5cb956c0df44ee8638b65b3e9407deade65de62247b8fd77;
+            0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca;
+        let signature_s = 0x67075b978a9f74ca9d515e59bef04b9db63216b02f159a1bd77ec0cb88b0e6;
 
         let (
             nullifier,
@@ -367,8 +406,8 @@ mod tests {
             proof,
             refund_commitment_prev,
             refund_amount,
+            refund_commitment_next_expected,
             remask_nonce,
-            refund_ticket_hash,
             server_pubkey,
             signature_r,
             signature_s,
@@ -391,16 +430,14 @@ mod tests {
 
     #[test]
     #[should_panic(expected: "INVALID_REFUND_SIGNATURE")]
-    fn test_v2_kernel_rejects_bad_signature() {
+    fn test_v2_kernel_rejects_mismatched_bound_fields_with_same_signature() {
         let proof: Array<felt252> = array![];
         let root = rate_commitment();
-        let refund_ticket_hash =
-            0x2d6479c0758efbb5aa07d35ed5454d728637fceab7ba544d3ea95403a5630a8;
         let server_pubkey =
-            0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca;
+            0x3fcb8c6e0c6062cac02df9ff0f3775b2263874a4cbf42643fc26713e5a8ceb6;
         let signature_r =
-            0x6ff7b413a8457ef90f326b5280600a4473fef49b5b1dcdfcd7f42ca7aa59c69;
-        let signature_s = 0x23a9747ed71abc5cb956c0df44ee8638b65b3e9407deade65de62247b8fd77 + 1;
+            0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca;
+        let signature_s = 0x67075b978a9f74ca9d515e59bef04b9db63216b02f159a1bd77ec0cb88b0e6;
 
         v2_kernel(
             IDENTITY_SECRET,
@@ -413,9 +450,71 @@ mod tests {
             root,
             proof,
             123,
-            7,
+            2,
+            0x7b99cc88f3a162c75f4a2f9a11b9c7fa10f48af0f7a7c46b2d449d5f56f8ce5,
             9,
-            refund_ticket_hash,
+            server_pubkey,
+            signature_r,
+            signature_s,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected: "REFUND_STATE_MISMATCH")]
+    fn test_v2_kernel_rejects_wrong_expected_state_transition() {
+        let proof: Array<felt252> = array![];
+        let root = rate_commitment();
+        let server_pubkey =
+            0x3fcb8c6e0c6062cac02df9ff0f3775b2263874a4cbf42643fc26713e5a8ceb6;
+        let signature_r =
+            0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca;
+        let signature_s = 0x67075b978a9f74ca9d515e59bef04b9db63216b02f159a1bd77ec0cb88b0e6;
+
+        v2_kernel(
+            IDENTITY_SECRET,
+            TICKET_INDEX,
+            X,
+            SCOPE,
+            USER_MESSAGE_LIMIT,
+            1_000.into(),
+            100.into(),
+            root,
+            proof,
+            123,
+            1,
+            0x3639abd57ba0779f4fdd845168e3815a72834c875ee135981660ebedaa68771,
+            9,
+            server_pubkey,
+            signature_r,
+            signature_s,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected: "INVALID_REFUND_SIGNATURE")]
+    fn test_v2_kernel_rejects_bad_signature() {
+        let proof: Array<felt252> = array![];
+        let root = rate_commitment();
+        let server_pubkey =
+            0x3fcb8c6e0c6062cac02df9ff0f3775b2263874a4cbf42643fc26713e5a8ceb6;
+        let signature_r =
+            0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca;
+        let signature_s = 0x67075b978a9f74ca9d515e59bef04b9db63216b02f159a1bd77ec0cb88b0e6 + 1;
+
+        v2_kernel(
+            IDENTITY_SECRET,
+            TICKET_INDEX,
+            X,
+            SCOPE,
+            USER_MESSAGE_LIMIT,
+            1_000.into(),
+            100.into(),
+            root,
+            proof,
+            123,
+            1,
+            0x3639abd57ba0779f4fdd845168e3815a72834c875ee135981660ebedaa68770,
+            9,
             server_pubkey,
             signature_r,
             signature_s,
