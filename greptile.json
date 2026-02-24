@@ -1,5 +1,5 @@
 {
-  "strictness": 2,
+  "strictness": 1,
   "commentTypes": [
     "logic",
     "syntax",
@@ -8,9 +8,15 @@
   ],
   "triggerOnUpdates": true,
   "fileChangeLimit": 250,
-  "instructions": "Prioritize correctness and security over style. Focus on circuit soundness, witness/public boundary mistakes, Merkle membership logic, nullifier/share derivation, and solvency/range constraints. Treat benchmark reproducibility regressions as important. Avoid low-value nitpicks.",
+  "instructions": "Prioritize correctness and production risk over style. Focus on circuit soundness, witness/public boundary mistakes, Merkle membership logic, nullifier/share derivation, solvency/range constraints, and reproducibility regressions. If no blocking issues are found, still leave 2-4 concrete non-blocking suggestions (info/style) on changed lines with specific remediation.",
   "ignorePatterns": "target/**\nscripts/results/**\n**/*_proof.json\n**/*.proof.json\n**/__pycache__/**",
   "updateExistingSummaryComment": true,
+  "shouldUpdateDescription": false,
+  "fixWithAI": true,
+  "excludeAuthors": [
+    "dependabot[bot]",
+    "github-actions[bot]"
+  ],
   "statusCheck": true,
   "statusCommentsEnabled": true,
   "includeConfidenceScore": true,
@@ -29,6 +35,12 @@
         "scope": [
           "scripts/bench/**/*.sh",
           "scripts/bench/**/*.py"
+        ]
+      },
+      {
+        "rule": "Interop scripts must fail loudly on parse/timeout/schema mismatches and include deterministic test coverage for failure modes.",
+        "scope": [
+          "scripts/interop/**/*.py"
         ]
       }
     ],
