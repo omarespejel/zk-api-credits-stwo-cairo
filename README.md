@@ -56,6 +56,12 @@ rough reading:
 - prove is the heavy part
 - pre-generation is the intended UX model
 
+newer directional runs (same machine, same repo, scarb-prove, 10 iters):
+- `scripts/results/v1_v2_delta_1771973459/summary.csv`
+- `scripts/results/v1_v2_delta_1771973459/v1_vs_v2_delta.csv`
+- `scripts/results/v2_kernel_only_1771973661/summary.csv`
+- these are the ones to look at for current v1/v2-kernel behavior.
+
 ## proof size note (important)
 
 the raw proof file is pretty json, so size looks worse than wire reality.
@@ -144,10 +150,10 @@ typical prove times per depth (Apple M-series, release profile):
 
 | depth | prove time | recommended `--timeout` |
 |-------|-----------|------------------------|
-| 8     | ~3s       | 600 (default)          |
-| 16    | ~5s       | 600 (default)          |
-| 20    | ~8s       | 600 (default)          |
-| 32    | ~15s      | 600 (default)          |
+| 8     | ~2-3s (can spike)   | 600 (default) |
+| 16    | ~2-3s (can spike)   | 600 (default) |
+| 20    | ~2-3s (can spike)   | 600 (default) |
+| 32    | ~2-4s (can spike)   | 600 (default) |
 
 for slower machines or CI runners, set a higher timeout via
 `--timeout 1200` or `V2_SEQUENTIAL_DEMO_TIMEOUT_S=1200`.
@@ -172,7 +178,11 @@ python3 scripts/interop/check_alignment.py \
 ```
 
 notes:
-- this check computes a shared root first using `derive_rate_commitment_root`.
+- this check auto-detects Vivian repo layout (`rln/` when present).
+- our side derives root with `derive_rate_commitment_root`.
+- Vivian side can run in strict mode from vector fields
+  (`vivian_merkle_proof_length`, `vivian_merkle_proof_indices`,
+  `vivian_merkle_proof_siblings`, `vivian_expected_root`) or legacy mode.
 - it then executes both repos with aligned inputs and verifies:
   - `nullifier` equality across both implementations
   - `y` (SSS share) equality across both implementations
@@ -222,6 +232,9 @@ python3 scripts/bench/combine_tables.py \
   --delta-table scripts/results/v1_v2_delta_<ts>/v1_vs_v2_delta.csv \
   --out scripts/results/combined_report.md
 ```
+
+note: `main_baseline` is currently `cairo-prove` and v1/v2-delta runs are currently
+`scarb-prove`, so `combine_tables.py` will stop unless you pass `--allow-mixed`.
 
 ## preflight
 
