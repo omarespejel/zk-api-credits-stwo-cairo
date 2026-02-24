@@ -38,11 +38,12 @@ fn build_rate_commitment(identity_secret: felt252, user_message_limit: u32) -> f
     hash_poseidon_pair(identity_commitment, user_message_limit.into())
 }
 
+/// Builds the signed refund ticket hash in canonical order:
+/// (refund_commitment_prev, refund_amount, ticket_index, scope).
+/// Order is part of the signature domain; changing it invalidates signatures.
 fn build_refund_ticket_hash(
     refund_commitment_prev: felt252, refund_amount: felt252, ticket_index: felt252, scope: felt252,
 ) -> felt252 {
-    // Canonical binding for server signatures. The exact field order is part of
-    // the signed domain: changing order changes the hash and invalidates reuse.
     hash_poseidon_quad(refund_commitment_prev, refund_amount, ticket_index, scope)
 }
 

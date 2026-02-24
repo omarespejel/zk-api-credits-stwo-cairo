@@ -14,7 +14,34 @@ TARGET_NAME="zk_api_credits_v2_kernel"
 MACHINE_CACHE="${PROJECT_ROOT}/.bench_machine_cache"
 SCARB_VERSION="$(scarb --version 2>/dev/null || echo unknown)"
 CPU_SIGNATURE="$(uname -s 2>/dev/null || echo unknown)-$(uname -m 2>/dev/null || echo unknown)"
-CACHE_KEY="${SCARB_VERSION}|${CPU_SIGNATURE}"
+CPU_MODEL="$(python3 - <<'PY'
+import pathlib
+import platform
+import subprocess
+
+model = ""
+cpuinfo = pathlib.Path("/proc/cpuinfo")
+if cpuinfo.exists():
+    for line in cpuinfo.read_text().splitlines():
+        if line.lower().startswith("model name"):
+            _, _, value = line.partition(":")
+            model = value.strip()
+            break
+if not model:
+    try:
+        model = subprocess.check_output(
+            ["sysctl", "-n", "machdep.cpu.brand_string"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        model = ""
+if not model:
+    model = platform.processor() or "unknown"
+print(model)
+PY
+)"
+CACHE_KEY="${SCARB_VERSION}|${CPU_SIGNATURE}|${CPU_MODEL}"
 if [[ -f "${MACHINE_CACHE}" ]] && head -1 "${MACHINE_CACHE}" | grep -qF "${CACHE_KEY}"; then
   MACHINE=$(tail -1 "${MACHINE_CACHE}")
 else
@@ -77,7 +104,8 @@ for depth in ${BENCH_DEPTHS}; do
     proof_path=$(python3 - "${prove_log}" <<'PY'
 import re
 import sys
-text = open(sys.argv[1]).read()
+with open(sys.argv[1]) as f:
+    text = f.read()
 m = re.search(r"Saving proof to: (.+)", text)
 if not m:
     raise SystemExit("could not parse proof path")
@@ -211,21 +239,31 @@ print(rows[0].get('profile','') if rows else '')
   fi
 fi
 
-python3 - <<PY
+python3 - "${RUN_TAG}" "${PROVER_ENGINE}" "${SCARB_PROFILE}" "${TARGET_NAME}" "${MACHINE}" "${BENCH_DEPTHS}" "${BENCH_ITERATIONS}" "${RESULTS_DIR}" <<'PY'
 import json
+import sys
 from datetime import datetime, timezone
 
+run_tag = sys.argv[1]
+prover_engine = sys.argv[2]
+profile = sys.argv[3]
+target = sys.argv[4]
+machine = sys.argv[5]
+bench_depths = sys.argv[6]
+iterations = int(sys.argv[7])
+results_dir = sys.argv[8]
+
 meta = {
-    "run_tag": "${RUN_TAG}",
-    "prover_engine": "${PROVER_ENGINE}",
-    "profile": "${SCARB_PROFILE}",
-    "target": "${TARGET_NAME}",
-    "machine": "${MACHINE}",
-    "bench_depths": "${BENCH_DEPTHS}".split(),
-    "iterations": int("${BENCH_ITERATIONS}"),
+    "run_tag": run_tag,
+    "prover_engine": prover_engine,
+    "profile": profile,
+    "target": target,
+    "machine": machine,
+    "bench_depths": bench_depths.split(),
+    "iterations": iterations,
     "generated_at_utc": datetime.now(timezone.utc).isoformat(),
 }
-with open("${RESULTS_DIR}/bench_meta.json", "w") as f:
+with open(f"{results_dir}/bench_meta.json", "w") as f:
     json.dump(meta, f, indent=2)
 PY
 

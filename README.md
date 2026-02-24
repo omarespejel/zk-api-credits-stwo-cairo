@@ -151,6 +151,7 @@ typical prove times per depth (Apple M-series, release profile):
 
 for slower machines or CI runners, set a higher timeout via
 `--timeout 1200` or `V2_SEQUENTIAL_DEMO_TIMEOUT_S=1200`.
+At depth 32 in particular, slower hosts may exceed the default `600s` timeout.
 
 ## cross-repo interop check
 

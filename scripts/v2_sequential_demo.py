@@ -69,7 +69,7 @@ def run(cmd: list[str], cwd: Path, timeout_s: int = DEFAULT_SUBPROCESS_TIMEOUT_S
         )
     except subprocess.TimeoutExpired as exc:
         elapsed_ms = int((time.monotonic() - start) * 1000)
-        partial = (exc.output or "") if exc.output else ""
+        partial = exc.output or ""
         raise RuntimeError(
             f"command timed out after {timeout_s}s ({elapsed_ms}ms elapsed): "
             f"{' '.join(cmd)}\n{partial}"
@@ -183,7 +183,7 @@ def main() -> int:
         "signature_r",
         "signature_s",
     }
-    for i, s in enumerate(steps):
+    for i, s in enumerate(chain):
         missing = REQUIRED_STEP_KEYS - s.keys()
         if missing:
             raise ValueError(
@@ -196,7 +196,7 @@ def main() -> int:
                 "(monotonic contiguous sequence starting at 0)"
             )
 
-    local_state = parse_int(steps[0]["refund_commitment_prev"])
+    local_state = parse_int(chain[0]["refund_commitment_prev"])
     if local_state == 0:
         raise ValueError("chain fixture has zero initial refund_commitment_prev; likely invalid")
     if local_state != GENESIS_REFUND_COMMITMENT_PREV:
