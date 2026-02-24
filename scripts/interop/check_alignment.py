@@ -125,7 +125,13 @@ def validate_vector(vector_raw: object, vector_path: Path) -> dict[str, int | st
         for key in VIVIAN_REQUIRED_INT_KEYS:
             if key not in vector_raw:
                 raise ValueError(f"vector missing required key '{key}' in {vector_path}")
-            vector[key] = parse_strict_int(key, vector_raw[key], vector_path)
+            parsed = parse_strict_int(key, vector_raw[key], vector_path)
+            if key == "vivian_merkle_proof_length" and not (0 <= parsed <= MERKLE_PROOF_SLOT_COUNT):
+                raise ValueError(
+                    f"vector key '{key}' must be between 0 and {MERKLE_PROOF_SLOT_COUNT} "
+                    f"in {vector_path}"
+                )
+            vector[key] = parsed
         for key in VIVIAN_REQUIRED_ARRAY_KEYS:
             if key not in vector_raw:
                 raise ValueError(f"vector missing required key '{key}' in {vector_path}")
