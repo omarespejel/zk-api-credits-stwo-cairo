@@ -118,6 +118,8 @@ If `scripts/results/main_baseline/bench_summary.csv` exists, the script also emi
 - `scripts/results/v2_kernel_only_<ts>/v1_vs_v2_from_baseline.csv`
 
 This gives a one-file depth-by-depth V1-vs-V2 table using the committed baseline family.
+If baseline/current `prover_engine` or `profile` differ, delta generation is skipped unless
+`ALLOW_MIXED_BASELINE=1` is set.
 
 ## Combined report guardrail
 

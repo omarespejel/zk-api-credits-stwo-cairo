@@ -200,6 +200,9 @@ v2-kernel depths only:
 # defaults if unset:
 # BENCH_DEPTHS="8 16 20 32", BENCH_ITERATIONS=5, SCARB_PROFILE=release
 # output dir pattern: scripts/results/v2_kernel_only_<unix_timestamp>/
+# if scripts/results/main_baseline/bench_summary.csv exists and engine/profile
+# matches (or ALLOW_MIXED_BASELINE=1), also writes:
+# scripts/results/v2_kernel_only_<unix_timestamp>/v1_vs_v2_from_baseline.csv
 BENCH_ITERATIONS=10 ./scripts/bench/run_v2_kernel_depths.sh
 ```
 

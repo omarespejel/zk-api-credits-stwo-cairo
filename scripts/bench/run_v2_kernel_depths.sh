@@ -13,7 +13,8 @@ PROVER_ENGINE="scarb-prove"
 TARGET_NAME="zk_api_credits_v2_kernel"
 MACHINE_CACHE="${PROJECT_ROOT}/.bench_machine_cache"
 SCARB_VERSION="$(scarb --version 2>/dev/null || echo unknown)"
-CACHE_KEY="${SCARB_VERSION}"
+CPU_SIGNATURE="$(uname -s 2>/dev/null || echo unknown)-$(uname -m 2>/dev/null || echo unknown)"
+CACHE_KEY="${SCARB_VERSION}|${CPU_SIGNATURE}"
 if [[ -f "${MACHINE_CACHE}" ]] && head -1 "${MACHINE_CACHE}" | grep -qF "${CACHE_KEY}"; then
   MACHINE=$(tail -1 "${MACHINE_CACHE}")
 else
@@ -51,6 +52,7 @@ RAW="${RESULTS_DIR}/runs.csv"
 SUMMARY="${RESULTS_DIR}/summary.csv"
 DELTA="${RESULTS_DIR}/v1_vs_v2_from_baseline.csv"
 BASELINE_SUMMARY="${BASELINE_SUMMARY:-${PROJECT_ROOT}/scripts/results/main_baseline/bench_summary.csv}"
+ALLOW_MIXED_BASELINE="${ALLOW_MIXED_BASELINE:-0}"
 
 cat > "${RAW}" <<EOF
 run_tag,prover_engine,profile,target,machine,depth,iteration,prove_wall_ms,verify_wall_ms,proof_size_bytes,proof_path
@@ -165,6 +167,7 @@ with summary_path.open("w", newline="") as f:
 PY
 
 if [[ -f "${BASELINE_SUMMARY}" ]]; then
+  should_build_delta=1
   baseline_engine=$(python3 -c "
 import csv, sys
 with open('${BASELINE_SUMMARY}') as f:
@@ -177,14 +180,35 @@ with open('${BASELINE_SUMMARY}') as f:
     rows = list(csv.DictReader(f))
 print(rows[0].get('profile','') if rows else '')
 ")
-  if [[ "${baseline_engine}" != "${PROVER_ENGINE}" || "${baseline_profile}" != "${SCARB_PROFILE}" ]]; then
-    echo "WARNING: baseline engine/profile (${baseline_engine}/${baseline_profile}) differs from" \
-         "current run (${PROVER_ENGINE}/${SCARB_PROFILE}); delta results may not be comparable." >&2
+  current_engine=$(python3 -c "
+import csv, sys
+with open('${SUMMARY}') as f:
+    rows = list(csv.DictReader(f))
+print(rows[0].get('prover_engine','') if rows else '')
+")
+  current_profile=$(python3 -c "
+import csv, sys
+with open('${SUMMARY}') as f:
+    rows = list(csv.DictReader(f))
+print(rows[0].get('profile','') if rows else '')
+")
+  if [[ "${baseline_engine}" != "${current_engine}" || "${baseline_profile}" != "${current_profile}" ]]; then
+    echo "WARNING: engine/profile mismatch between BASELINE_SUMMARY=${BASELINE_SUMMARY}" \
+         "(${baseline_engine}/${baseline_profile}) and SUMMARY=${SUMMARY}" \
+         "(${current_engine}/${current_profile})." >&2
+    if [[ "${ALLOW_MIXED_BASELINE}" != "1" ]]; then
+      echo "Skipping delta generation. Set ALLOW_MIXED_BASELINE=1 to override." >&2
+      should_build_delta=0
+    else
+      echo "ALLOW_MIXED_BASELINE=1 set; generating delta with mixed families." >&2
+    fi
   fi
-  python3 -m scripts.bench.build_v1_v2_delta \
-    --baseline-summary "${BASELINE_SUMMARY}" \
-    --v2-summary "${SUMMARY}" \
-    --out "${DELTA}"
+  if [[ "${should_build_delta}" == "1" ]]; then
+    python3 -m scripts.bench.build_v1_v2_delta \
+      --baseline-summary "${BASELINE_SUMMARY}" \
+      --v2-summary "${SUMMARY}" \
+      --out "${DELTA}"
+  fi
 fi
 
 python3 - <<PY

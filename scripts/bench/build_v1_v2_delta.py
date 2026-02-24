@@ -18,6 +18,18 @@ else:
     )
 
 
+class BuildDeltaError(RuntimeError):
+    """Base exception for delta-build validation errors."""
+
+
+class DuplicateDepthError(BuildDeltaError):
+    """Raised when a summary CSV contains duplicate depth rows."""
+
+
+class DepthMismatchError(BuildDeltaError):
+    """Raised when baseline and v2 summaries use different depth sets."""
+
+
 def parse_args() -> argparse.Namespace:
     """Parse CLI arguments for the v1-vs-v2 delta builder."""
     parser = argparse.ArgumentParser(description="Build v1 vs v2 delta table from summary CSV files.")
@@ -45,7 +57,7 @@ def main() -> int:
         for row in rows:
             depth = int(row["depth"])
             if depth in by_depth:
-                raise RuntimeError(f"{label} has duplicate depth={depth}")
+                raise DuplicateDepthError(f"{label} has duplicate depth={depth}")
             by_depth[depth] = row
         return by_depth
 
@@ -54,7 +66,7 @@ def main() -> int:
     missing_in_v2 = sorted(set(baseline_by_depth) - set(v2_by_depth))
     missing_in_baseline = sorted(set(v2_by_depth) - set(baseline_by_depth))
     if missing_in_v2 or missing_in_baseline:
-        raise RuntimeError(
+        raise DepthMismatchError(
             f"depth mismatch: missing in v2={missing_in_v2}, "
             f"missing in baseline={missing_in_baseline}"
         )
@@ -69,6 +81,12 @@ def main() -> int:
                 file=sys.stderr,
             )
             return math.nan
+        if baseline_value < 0:
+            print(
+                f"[warn] baseline {metric} is negative at depth={depth}; "
+                f"baseline={baseline_value}, v2={v2_value}; check input data integrity",
+                file=sys.stderr,
+            )
         return ((v2_value - baseline_value) / baseline_value) * 100
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
