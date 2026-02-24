@@ -115,6 +115,10 @@ fn v2_kernel(
     );
     assert!(signature_ok, "INVALID_REFUND_SIGNATURE");
 
+    // Transition commitment is derived from (prev, amount) via Pedersen.
+    // Security relies on Pedersen collision resistance; the signature above
+    // binds (prev, amount, ticket_index, scope), and this equality binds the
+    // prover-supplied next state to that signed transition.
     let refund_commitment_updated = pedersen(refund_commitment_prev, refund_amount);
     assert!(
         refund_commitment_updated == refund_commitment_next_expected, "REFUND_STATE_MISMATCH",
